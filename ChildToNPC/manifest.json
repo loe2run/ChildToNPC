@@ -6,7 +6,7 @@
   "UniqueID": "Loe2run.ChildToNPC",
   "EntryDll": "ChildToNPC.dll",
   "MinimumApiVersion": "2.10.0",
-  "UpdateKeys": [],
+  "UpdateKeys": [ "Nexus:4568" ],
   "Dependencies": [
     {
       "UniqueID": "Pathoschild.ContentPatcher",
