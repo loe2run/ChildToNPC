@@ -1,7 +1,7 @@
 # ChildToNPC
 This is a Stardew Valley mod called Child To NPC. Child To NPC is a modding tool which converts children into full-fledged NPCs, allowing them to be patched by other mods in the sames ways that NPCs can. This mod is newly released, so please let me know if you run into any issues using it.
 
-## How to use:
+## How to use
 
 The main purposes of Child To NPC is to make Content Patcher packs possible, so I recommend you look over the links below for instructions on how to make Content Patcher packs editing NPCs. (I'd also recommend looking over some of the Custom NPC mods that are already out there.)
 
@@ -19,6 +19,26 @@ Once you feel comfortable with making Content Patcher mods for NPCs, then you're
 (Also, remember to download Spacechase0's Custom NPC Fixes to avoid schedule issues for NPCs: 
 https://www.nexusmods.com/stardewvalley/mods/3849)
 
+## Configuration Options
+Child To NPC generates a config.json the first time the game is run. The default config.json looks like this.
+```cs
+{
+  "AgeWhenKidsAreModified": 83,
+  "ChildParentPairs": { }
+}
+```
+The field "AgeWhenKidsAreModified" determines the age (in days) when your child is replaced by an NPC. By default, this is set to 83, which is 28 days (one season) after they become a toddler.
+
+The field "ChildParentPairs" allows you to customize the parentage of your children. Normally, it's assumed that the parent of a child is your current spouse, but if you'd like to have your child customized based on a previous spouse after divorce (or whatever reason you have), you can enter their parentage here.
+
+For example, if want your first child Violet to have Shane as their parent, but your second child Lily to have Elliot as their parent, your config.json would look like this.
+```cs
+  "AgeWhenKidsAreModified": 83,
+  "ChildParentPairs": { 
+    "Violet": "Shane",
+    "Lily": "Elliot"
+  }
+```
 ## Custom Tokens for Content Patcher
 ### Manifest.json
 Inside the manifest.json, be sure that you list "Loe2run.ChildToNPC" as a required dependency. Not only does this allow Child To NPC to run first when generating NPCs, but it also allows you to make use of the Content Patcher tokens this mod creates.
@@ -28,6 +48,7 @@ Child To NPC makes use of the Content Patcher API to create custom tokens. These
 ```cs
 {{Loe2run.ChildToNPC/<Token Name Here>}}
 ```
+While all the examples below will be using the "First" prefix, which indicates the first child born, these tokens are also available for up to four children. In addition to `FirstChildName`, there's also `SecondChildName`, `ThirdChildName`, and `FourthChildName`. This extends to all tokens.
 
 #### Name
 ```cs
@@ -71,7 +92,7 @@ This token returns the child's gender in the form of the string "male" or "femal
     "LogName": "Child Portraits",
     "Action": "Load",
     "Target": "Portraits/{{Loe2run.ChildToNPC/FirstChildName}}",
-    "FromFile": "assets/Image/FirstSon.png",
+    "FromFile": "assets/FirstSonPortrait.png",
     "When": {
         "{{Loe2run.ChildToNPC/FirstChildGender}}": "male"
     }
@@ -88,6 +109,24 @@ This token returns the child's gender in the form of the string "male" or "femal
 This token by default returns a tile position in the form of "x y" where the child will go to bed. It's generated in the same way that Family Planning generates bed spots, so that if there are more than two children, they will share beds. 
 
 This token also takes input if you'd like to choose where your child goes to bed, as you'll see above.
+
+#### Parent
+```cs
+{{Loe2run.ChildToNPC/FirstChildParent}}
+```
+This token by default returns the current spouse of the player, but this value can be customized in the config.json for each child. This can, for example, let you customize the appearance of your child by spouse.
+
+```cs
+{
+  "LogName": "Child Sprites (Penny)",
+  "Action": "Load",
+  "Target": "Characters/{{Loe2run.ChildToNPC/FirstChildName}}",
+  "FromFile": "assets/sprites_Penny.png",
+  "When": {
+      "Loe2run.ChildToNPC/FirstChildParent": "Penny"
+  }
+},
+```
 
 #### TODO
 I'm in the process of adding more tokens, like parent identities.
