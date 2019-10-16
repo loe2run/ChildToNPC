@@ -50,6 +50,7 @@ namespace ChildToNPC
         //Variables for this class
         public static Dictionary<string, NPC> copies;
         public static List<Child> children;
+        public static Dictionary<string, string> children_parents;
         public static IMonitor monitor;
         public static IModHelper helper;
         public ModConfig Config;
@@ -62,6 +63,7 @@ namespace ChildToNPC
             ModEntry.helper = helper;
             copies = new Dictionary<string, NPC>();
             children = new List<Child>();
+            children_parents = new Dictionary<string, string>();
 
             Config = helper.ReadConfig<ModConfig>();
             if (Config != null)
@@ -100,6 +102,18 @@ namespace ChildToNPC
                     //Add child to list & remove from farmHouse
                     children.Add(child);
                     farmHouse.getCharacters().Remove(child);
+
+                    //Set the parent for the child, from config or from default
+                    foreach(string name in Config.ChildParentPairs.Keys)
+                    {
+                        if (child.Name.Equals(name))
+                        {
+                            Config.ChildParentPairs.TryGetValue(child.Name, out string parentName);
+                            children_parents.Add(child.Name, parentName);
+                        }
+                    }
+                    if (!children_parents.ContainsKey(child.Name))
+                        children_parents.Add(child.Name, Game1.player.spouse);
 
                     //Create childCopy, add childCopy to list, add to farmHouse at random spot
                     Point openPoint = farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30);
@@ -240,6 +254,7 @@ namespace ChildToNPC
         {
             copies = new Dictionary<string, NPC>();
             children = new List<Child>();
+            children_parents = new Dictionary<string, string>();
             spriteUpdateNeeded = true;
         }
 
@@ -292,6 +307,15 @@ namespace ChildToNPC
                 allowsInput: false,
                 requiresInput: false
             );
+            api.RegisterToken(
+                mod: ModManifest,
+                name: "FirstChildParent",
+                updateContext: token.ParentUpdateContext,
+                isReady: token.IsReady,
+                getValue: token.ParentGetValue,
+                allowsInput: false,
+                requiresInput: false
+            );
 
             token = new ChildToken(2);
             api.RegisterToken(
@@ -327,6 +351,15 @@ namespace ChildToNPC
                 updateContext: token.GenderUpdateContext,
                 isReady: token.IsReady,
                 getValue: token.GenderGetValue,
+                allowsInput: false,
+                requiresInput: false
+            );
+            api.RegisterToken(
+                mod: ModManifest,
+                name: "SecondChildParent",
+                updateContext: token.ParentUpdateContext,
+                isReady: token.IsReady,
+                getValue: token.ParentGetValue,
                 allowsInput: false,
                 requiresInput: false
             );
@@ -368,6 +401,15 @@ namespace ChildToNPC
                 allowsInput: false,
                 requiresInput: false
             );
+            api.RegisterToken(
+                mod: ModManifest,
+                name: "ThirdChildParent",
+                updateContext: token.ParentUpdateContext,
+                isReady: token.IsReady,
+                getValue: token.ParentGetValue,
+                allowsInput: false,
+                requiresInput: false
+            );
 
             token = new ChildToken(4);
             api.RegisterToken(
@@ -403,6 +445,15 @@ namespace ChildToNPC
                 updateContext: token.GenderUpdateContext,
                 isReady: token.IsReady,
                 getValue: token.GenderGetValue,
+                allowsInput: false,
+                requiresInput: false
+            );
+            api.RegisterToken(
+                mod: ModManifest,
+                name: "FourthChildParent",
+                updateContext: token.ParentUpdateContext,
+                isReady: token.IsReady,
+                getValue: token.ParentGetValue,
                 allowsInput: false,
                 requiresInput: false
             );
@@ -445,6 +496,16 @@ namespace ChildToNPC
         {
             if (children != null && children.Count >= childNumber && children[childNumber - 1].daysOld >= ageForCP)
                 return (children[childNumber - 1].Gender == 0) ? "male" : "female";
+            return null;
+        }
+
+        public static string GetChildNPCParent(int childNumber)
+        {
+            if(children != null && children.Count >= childNumber && children[childNumber - 1].daysOld >= ageForCP)
+            {
+                children_parents.TryGetValue(children[childNumber - 1].Name, out string parentName);
+                return parentName;
+            }
             return null;
         }
 
