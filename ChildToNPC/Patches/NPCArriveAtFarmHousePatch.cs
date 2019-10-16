@@ -26,20 +26,30 @@ namespace ChildToNPC.Patches
             __instance.controller = null;
 
             //normally endPoint is Game1.timeOfDay >= 2130 ? farmHouse.getSpouseBedSpot() : farmHouse.getKitchenStandingSpot()
-
             //I want to come back and find a better solution for this
-            int birthNumber = 0;
-            foreach(NPC childCopy in ModEntry.copies.Values)
+            if(Game1.timeOfDay >= 2130)
             {
-                if (!__instance.Equals(childCopy))
-                    birthNumber++;
-                else
-                    return;
+                int birthNumber = 0;
+                foreach (NPC childCopy in ModEntry.copies.Values)
+                {
+                    if (!__instance.Equals(childCopy))
+                        birthNumber++;
+                    else
+                        return;
+                }
+                string bedSpot = ModEntry.GetBedSpot(birthNumber);
+                int bedX = int.Parse(bedSpot.Substring(0, bedSpot.IndexOf(" ")));
+                int bedY = int.Parse(bedSpot.Substring(bedSpot.IndexOf(" ") + 1, bedSpot.Length));
+                ModEntry.monitor.Log("x: " + bedX + ", y: " + bedY);
+                __instance.controller = new PathFindController(__instance, farmHouse, new Point(bedX, bedY), 2);
             }
-            string bedSpot = ModEntry.GetBedSpot(birthNumber);
-            int bedX = int.Parse(bedSpot.Substring(0, bedSpot.IndexOf(" ")));
-            int bedY = int.Parse(bedSpot.Substring(bedSpot.IndexOf(" ") + 1, bedSpot.Length));
-            __instance.controller = new PathFindController(__instance, farmHouse, new Point(bedX, bedY), 2);
+            else
+            {
+                int pointX = (int) __instance.DefaultPosition.X;
+                int pointY = (int) __instance.DefaultPosition.Y;
+                ModEntry.monitor.Log("x: " + pointX + ", y: " + pointY);
+                __instance.controller = new PathFindController(__instance, farmHouse, new Point(pointX, pointY), 2);
+            }
 
             if (Game1.currentLocation is FarmHouse)
                 Game1.currentLocation.playSound("doorClose");

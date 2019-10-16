@@ -22,7 +22,7 @@ namespace ChildToNPC.Patches
         {
             if (!ModEntry.IsChildNPC(__instance))
                 return true;
-
+            
             string[] strArray1 = rawData.Split('/');
             Dictionary<int, SchedulePathDescription> dictionary = new Dictionary<int, SchedulePathDescription>();
             int index1 = 0;

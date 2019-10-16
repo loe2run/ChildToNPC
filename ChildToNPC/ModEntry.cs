@@ -42,8 +42,7 @@ namespace ChildToNPC
     /* Future plans:
      * Make gifts/talking configurable (how many points to talk, how many gifts per week) 
      * Add automatic pathfinding around the house like spouse?
-     */ 
-
+     */
     class ModEntry : Mod
     {
         //The age at which the NPC takes over
@@ -125,7 +124,7 @@ namespace ChildToNPC
                     //Check if I've made this NPC before & set gift info
                     try
                     {
-                        NPCFriendshipData childCopyFriendship = helper.Data.ReadJsonFile<NPCFriendshipData>(helper.Content.GetActualAssetKey("assets/data.json"));
+                        NPCFriendshipData childCopyFriendship = helper.Data.ReadJsonFile<NPCFriendshipData>(helper.Content.GetActualAssetKey("assets/data_" + childCopy.Name + ".json", ContentSource.ModFolder));
                         if (childCopyFriendship != null)
                         {
                             Game1.player.friendshipData.TryGetValue(child.Name, out Friendship childFriendship);
@@ -138,9 +137,18 @@ namespace ChildToNPC
                 //If NPC was already generated previously
                 else if (copies.ContainsKey(child.Name))
                 {
+                    //Remove child
                     farmHouse.getCharacters().Remove(child);
 
+                    //Add copy at random location in the house
                     copies.TryGetValue(child.Name, out NPC childCopy);
+
+                    Point openPoint = farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30);
+                    Point bedPoint = farmHouse.getBedSpot();
+                    bedPoint = new Point(bedPoint.X - 1, bedPoint.Y);
+                    Vector2 location = openPoint != null ? new Vector2(openPoint.X * 64f, openPoint.Y * 64f) : new Vector2(bedPoint.X * 64f, bedPoint.Y * 64f);
+                    childCopy.Position = location;
+
                     farmHouse.addCharacter(childCopy);
                 }
             }
@@ -186,7 +194,7 @@ namespace ChildToNPC
                     WorldDate lastGiftWorldDate = friendship.LastGiftDate;
                     string lastGiftDate = lastGiftWorldDate.DayOfMonth + " " + lastGiftWorldDate.Season + " " + lastGiftWorldDate.Year;
                     NPCFriendshipData childCopyData = new NPCFriendshipData(friendship.Points, friendship.GiftsThisWeek, lastGiftDate);
-                    helper.Data.WriteJsonFile(helper.Content.GetActualAssetKey("assets/data.json"), childCopyData);
+                    helper.Data.WriteJsonFile("assets/data_" + childCopy.Name + ".json", childCopyData);
                 }
             }
             //Remove childCopies, add normal children
@@ -272,7 +280,7 @@ namespace ChildToNPC
                 updateContext: token.BedUpdateContext,
                 isReady: token.IsReady,
                 getValue: token.BedGetValue,
-                allowsInput: false,
+                allowsInput: true,
                 requiresInput: false
             );
             api.RegisterToken(
@@ -310,7 +318,7 @@ namespace ChildToNPC
                 updateContext: token.BedUpdateContext,
                 isReady: token.IsReady,
                 getValue: token.BedGetValue,
-                allowsInput: false,
+                allowsInput: true,
                 requiresInput: false
             );
             api.RegisterToken(
@@ -348,7 +356,7 @@ namespace ChildToNPC
                 updateContext: token.BedUpdateContext,
                 isReady: token.IsReady,
                 getValue: token.BedGetValue,
-                allowsInput: false,
+                allowsInput: true,
                 requiresInput: false
             );
             api.RegisterToken(
@@ -386,7 +394,7 @@ namespace ChildToNPC
                 updateContext: token.BedUpdateContext,
                 isReady: token.IsReady,
                 getValue: token.BedGetValue,
-                allowsInput: false,
+                allowsInput: true,
                 requiresInput: false
             );
             api.RegisterToken(
