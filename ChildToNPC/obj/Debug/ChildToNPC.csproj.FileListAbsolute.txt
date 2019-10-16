@@ -1,0 +1,7 @@
+C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\bin\Debug\ChildToNPC.dll
+C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\bin\Debug\ChildToNPC.pdb
+C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\obj\Debug\ChildToNPC.csproj.CoreCompileInputs.cache
+C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\obj\Debug\ChildToNPC.dll
+C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\obj\Debug\ChildToNPC.pdb
+C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\bin\Debug\0Harmony.dll
+C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\obj\Debug\ChildToNPC.csproj.CopyComplete
