@@ -1,4 +1,6 @@
-﻿namespace ChildToNPC
+﻿using System.Collections.Generic;
+
+namespace ChildToNPC
 {
     /* The ModConfig currently covers ageForCP,
      * the age at which the CP mod will patch over the child.
@@ -10,10 +12,12 @@
     class ModConfig
     {
         public int AgeWhenKidsAreModified { get; set; }
+        public Dictionary<string, string> ChildParentPairs { get; set; }
 
         public ModConfig()
         {
             AgeWhenKidsAreModified = 83;
+            ChildParentPairs = new Dictionary<string, string>();
         }
     }
 }

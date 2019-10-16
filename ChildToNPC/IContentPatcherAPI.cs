@@ -42,6 +42,7 @@ namespace ChildToNPC
         private string ToddlerBirthday;
         private string ToddlerBed;
         private string ToddlerGender;
+        private string ToddlerParent;
         private string CustomToddlerBed;
 
         public ChildToken(int childNumberIn)
@@ -55,6 +56,7 @@ namespace ChildToNPC
             BirthdayUpdateContext();
             BedUpdateContext();
             GenderUpdateContext();
+            ParentUpdateContext();
             return ToddlerName != null;
         }
 
@@ -90,6 +92,13 @@ namespace ChildToNPC
             return (ToddlerGender != lastUpdateGender);
         }
 
+        public bool ParentUpdateContext()
+        {
+            string lastUpdateParent = ToddlerParent;
+            ToddlerParent = ModEntry.GetChildNPCParent(childNumber);
+            return (ToddlerParent != lastUpdateParent);
+        }
+
         public IEnumerable<string> NameGetValue(string input)
         {
             yield return ToddlerName;
@@ -113,6 +122,11 @@ namespace ChildToNPC
         public IEnumerable<string> GenderGetValue(string input)
         {
             yield return ToddlerGender;
+        }
+
+        public IEnumerable<string> ParentGetValue(string input)
+        {
+            yield return ToddlerParent;
         }
     }
 }

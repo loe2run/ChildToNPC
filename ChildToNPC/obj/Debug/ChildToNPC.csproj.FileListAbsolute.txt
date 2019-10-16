@@ -5,4 +5,3 @@ C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\obj\Debug\ChildToNPC.dll
 C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\obj\Debug\ChildToNPC.pdb
 C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\bin\Debug\0Harmony.dll
 C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\obj\Debug\ChildToNPC.csproj.CopyComplete
-C:\Users\PC\source\repos\ChildToNPC\ChildToNPC\obj\Debug\ChildToNPC.csprojAssemblyReference.cache
