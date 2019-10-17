@@ -203,20 +203,9 @@ namespace ChildToNPC
          */ 
         private void OnSaving(object sender, SavingEventArgs e)
         {
-            //Save the friendship data for NPCs
             foreach (NPC childCopy in copies.Values)
             {
-                Game1.player.friendshipData.TryGetValue(childCopy.Name, out Friendship friendship);
-                if(friendship != null)
-                {
-                    WorldDate lastGiftWorldDate = friendship.LastGiftDate;
-                    string lastGiftDate = lastGiftWorldDate.DayOfMonth + " " + lastGiftWorldDate.Season + " " + lastGiftWorldDate.Year;
-                    NPCFriendshipData childCopyData = new NPCFriendshipData(friendship.Points, friendship.GiftsThisWeek, lastGiftDate);
-                    helper.Data.WriteJsonFile("assets/data_" + childCopy.Name + ".json", childCopyData); 
-                }
-
-                //I'm not sure if this is fully necessary, but I'll stick with it for now
-                //Check outdoor locations for a child NPC
+                //Remove childcopy from save file first
                 foreach (GameLocation location in Game1.locations)
                 {
                     if (location.characters.Contains(childCopy))
@@ -231,9 +220,20 @@ namespace ChildToNPC
                             building.indoors.Value.getCharacters().Remove(childCopy);
                     }
                 }
-            }
 
-            //Remove childCopies, add normal children
+                //Save NPC Gift data
+                Game1.player.friendshipData.TryGetValue(childCopy.Name, out Friendship friendship);
+                if (friendship != null)
+                {
+                    if(friendship.LastGiftDate != null)//null when loading from Child for the first time
+                    {
+                        string lastGiftDate = friendship.LastGiftDate.DayOfMonth + " " + friendship.LastGiftDate.Season + " " + friendship.LastGiftDate.Year;
+                        NPCFriendshipData childCopyData = new NPCFriendshipData(friendship.Points, friendship.GiftsThisWeek, lastGiftDate);
+                        helper.Data.WriteJsonFile("assets/data_" + childCopy.Name + ".json", childCopyData);
+                    }
+                }
+            }
+            
             FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
             //Add children
             foreach (Child child in children)
