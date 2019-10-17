@@ -27,9 +27,9 @@ namespace ChildToNPC.Patches
 
             //normally endPoint is Game1.timeOfDay >= 2130 ? farmHouse.getSpouseBedSpot() : farmHouse.getKitchenStandingSpot()
             //I want to come back and find a better solution for this
-            if(Game1.timeOfDay >= 2130)
+            if(Game1.timeOfDay >= 2030)//830 pm
             {
-                int birthNumber = 0;
+                int birthNumber = 1;
                 foreach (NPC childCopy in ModEntry.copies.Values)
                 {
                     if (!__instance.Equals(childCopy))
@@ -40,14 +40,12 @@ namespace ChildToNPC.Patches
                 string bedSpot = ModEntry.GetBedSpot(birthNumber);
                 int bedX = int.Parse(bedSpot.Substring(0, bedSpot.IndexOf(" ")));
                 int bedY = int.Parse(bedSpot.Substring(bedSpot.IndexOf(" ") + 1, bedSpot.Length));
-                ModEntry.monitor.Log("x: " + bedX + ", y: " + bedY);
                 __instance.controller = new PathFindController(__instance, farmHouse, new Point(bedX, bedY), 2);
             }
             else
             {
-                int pointX = (int) __instance.DefaultPosition.X;
-                int pointY = (int) __instance.DefaultPosition.Y;
-                ModEntry.monitor.Log("x: " + pointX + ", y: " + pointY);
+                int pointX = (int) __instance.DefaultPosition.X / 64;
+                int pointY = (int) __instance.DefaultPosition.Y / 64;
                 __instance.controller = new PathFindController(__instance, farmHouse, new Point(pointX, pointY), 2);
             }
 

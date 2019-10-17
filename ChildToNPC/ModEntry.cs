@@ -42,6 +42,7 @@ namespace ChildToNPC
     /* Future plans:
      * Make gifts/talking configurable (how many points to talk, how many gifts per week) 
      * Add automatic pathfinding around the house like spouse?
+     * Customizable term for your child to call you (Mama/Papa, Mommy/Daddy, etc.)
      */
     class ModEntry : Mod
     {
@@ -164,6 +165,9 @@ namespace ChildToNPC
                     childCopy.Position = location;
 
                     farmHouse.addCharacter(childCopy);
+
+                    //I think this should prevent the schedule from not loading on some days?
+                    childCopy.getSchedule(Game1.dayOfMonth);
                 }
             }
         }
@@ -208,37 +212,32 @@ namespace ChildToNPC
                     WorldDate lastGiftWorldDate = friendship.LastGiftDate;
                     string lastGiftDate = lastGiftWorldDate.DayOfMonth + " " + lastGiftWorldDate.Season + " " + lastGiftWorldDate.Year;
                     NPCFriendshipData childCopyData = new NPCFriendshipData(friendship.Points, friendship.GiftsThisWeek, lastGiftDate);
-                    helper.Data.WriteJsonFile("assets/data_" + childCopy.Name + ".json", childCopyData);
+                    helper.Data.WriteJsonFile("assets/data_" + childCopy.Name + ".json", childCopyData); 
+                }
+
+                //I'm not sure if this is fully necessary, but I'll stick with it for now
+                //Check outdoor locations for a child NPC
+                foreach (GameLocation location in Game1.locations)
+                {
+                    if (location.characters.Contains(childCopy))
+                        location.getCharacters().Remove(childCopy);
+                }
+                //Check indoor locations for a child NPC
+                foreach (BuildableGameLocation location in Game1.locations.OfType<BuildableGameLocation>())
+                {
+                    foreach (Building building in location.buildings)
+                    {
+                        if (building.indoors.Value != null && building.indoors.Value.characters.Contains(childCopy))
+                            building.indoors.Value.getCharacters().Remove(childCopy);
+                    }
                 }
             }
+
             //Remove childCopies, add normal children
             FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
-
+            //Add children
             foreach (Child child in children)
             {
-                //Remove NPCs
-                if (copies.ContainsKey(child.Name))//Should never be false?
-                {
-                    copies.TryGetValue(child.Name, out NPC childCopy);
-
-                    //I'm not sure if this is fully necessary, but I'll stick with it for now
-                    //Check outdoor locations for a child NPC
-                    foreach (GameLocation location in Game1.locations)
-                    {
-                        if (location.characters.Contains(childCopy))
-                            location.getCharacters().Remove(childCopy);
-                    }
-                    //Check indoor locations for a child NPC
-                    foreach(BuildableGameLocation location in Game1.locations.OfType<BuildableGameLocation>())
-                    {
-                        foreach(Building building in location.buildings)
-                        {
-                            if(building.indoors.Value != null && building.indoors.Value.characters.Contains(childCopy))
-                                building.indoors.Value.getCharacters().Remove(childCopy);
-                        }
-                    }
-                }
-                //Add children
                 if (!farmHouse.getCharacters().Contains(child))
                     farmHouse.addCharacter(child);
             }
@@ -271,6 +270,16 @@ namespace ChildToNPC
                 return;
 
             ChildToken token = new ChildToken(1);
+            api.RegisterToken(
+                mod: ModManifest,
+                name: "NumberTotalChildren",
+                updateContext: token.TotalChildrenUpdateContext,
+                isReady: token.IsReady,
+                getValue: token.TotalChildrenGetValue,
+                allowsInput: false,
+                requiresInput: false
+            );
+
             api.RegisterToken(
                 mod: ModManifest,
                 name: "FirstChildName",
@@ -507,6 +516,19 @@ namespace ChildToNPC
                 return parentName;
             }
             return null;
+        }
+
+        public static string GetTotalChildren()
+        {
+            FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
+
+            if (farmHouse == null)
+                return null;
+
+            if (children != null)
+                return (farmHouse.getChildrenCount() + children.Count).ToString();
+            else
+                return farmHouse.getChildrenCount().ToString();
         }
 
         public static string GetBedSpot(int birthNumber)
