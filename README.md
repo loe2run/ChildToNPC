@@ -3,7 +3,7 @@ This is a Stardew Valley mod called Child To NPC. Child To NPC is a modding tool
 
 ## How to use
 
-The main purposes of Child To NPC is to make Content Patcher packs possible, so I recommend you look over the links below for instructions on how to make Content Patcher packs editing NPCs. (I'd also recommend looking over some of the Custom NPC mods that are already out there.)
+The main purposes of Child To NPC is to make Content Patcher packs possible, so I recommend you look over the links below for instructions on how to make Content Patcher packs editing NPCs. There's an example Content Patcher pack to download on the Nexus page which shows you simple examples for how to create new child NPCs. (I'd also recommend looking over some of the Custom NPC mods that are already out there.)
 
 The Readme for Content Patcher, which explains how to make Content Patcher packs:
 https://github.com/Pathoschild/StardewMods/blob/9c5d557b9591721ea34dd162da25e21c19b22ba0/ContentPatcher/README.md
@@ -46,13 +46,13 @@ Inside the manifest.json, be sure that you list "Loe2run.ChildToNPC" as a requir
 ### Tokens
 Child To NPC makes use of the Content Patcher API to create custom tokens. These tokens take the form of:
 ```cs
-{{Loe2run.ChildToNPC/<Token Name Here>}}
+"{{Loe2run.ChildToNPC/<Token Name Here>}}"
 ```
 While all the examples below will be using the "First" prefix, which indicates the first child born, these tokens are also available for up to four children. In addition to `FirstChildName`, there's also `SecondChildName`, `ThirdChildName`, and `FourthChildName`. This extends to all tokens.
 
 #### Name
 ```cs
-{{Loe2run.ChildToNPC/FirstChildName}}
+"{{Loe2run.ChildToNPC/FirstChildName}}"
 ```
 This is the token you will use the most. It gives you access to the name of the NPC, so wherever you would normally use an NPC's name, like in a Target field, you can instead put this token.
 
@@ -67,7 +67,7 @@ Here's an example entry from your content.json:
 ```
 #### Birthday
 ```cs
-{{Loe2run.ChildToNPC/FirstChildBirthday}}
+"{{Loe2run.ChildToNPC/FirstChildBirthday}}"
 ```
 This token returns the child's birthday in the form of "day season year". For example, you can use this value when creating the NPC Disposition.
 
@@ -84,7 +84,7 @@ This token returns the child's birthday in the form of "day season year". For ex
 
 #### Gender
 ```cs
-{{Loe2run.ChildToNPC/FirstChildGender}}
+"{{Loe2run.ChildToNPC/FirstChildGender}}"
 ```
 This token returns the child's gender in the form of the string "male" or "female". This is also useful for the NPC Disposition, or as a condition.
 ```cs
@@ -101,10 +101,10 @@ This token returns the child's gender in the form of the string "male" or "femal
 
 #### Bed Location
 ```cs
-{{Loe2run.ChildToNPC/FirstChildBed}}
+"{{Loe2run.ChildToNPC/FirstChildBed}}"
 ```
 ```cs
-{{Loe2run.ChildToNPC/FirstChildBed:7 7}}}
+"{{Loe2run.ChildToNPC/FirstChildBed:7 7}}}"
 ```
 This token by default returns a tile position in the form of "x y" where the child will go to bed. It's generated in the same way that Family Planning generates bed spots, so that if there are more than two children, they will share beds. 
 
@@ -112,7 +112,7 @@ This token also takes input if you'd like to choose where your child goes to bed
 
 #### Parent
 ```cs
-{{Loe2run.ChildToNPC/FirstChildParent}}
+"{{Loe2run.ChildToNPC/FirstChildParent}}"
 ```
 This token by default returns the current spouse of the player, but this value can be customized in the config.json for each child. This can, for example, let you customize the appearance of your child by spouse.
 
@@ -128,8 +128,23 @@ This token by default returns the current spouse of the player, but this value c
 },
 ```
 
-#### TODO
-I'm in the process of adding more tokens, like parent identities.
+#### Number of Children
+```cs
+"{{Loe2run.ChildToNPC/NumberTotalChildren}}"
+```
+This token is slightly different than the rest because it's independent of any particular child. It just tells you how many children the family has, including children under the age cutoff. This will return the value "0", "1", "2", "3", or "4" as of now. ("3" and "4" are available for players using the Family Planning mod.)
+
+```cs
+{
+  "LogName": "Only Child Sprites",
+  "Action": "Load",
+  "Target": "Characters/{{Loe2run.ChildToNPC/FirstChildName}}",
+  "FromFile": "assets/sprites.png",
+  "When": {
+      "Loe2run.ChildToNPC/NumberTotalChildren": "1"
+  }
+},
+```
 
 ## How to Uninstall
 To uninstall ChildToNPC, all you have to do is remove the ChildToNPC mod (and the other associated CP mods) from your mod folder. I've designed ChildToNPC so NPCs never get saved with the save data, so you shouldn't run into any issues when you get rid of them.
