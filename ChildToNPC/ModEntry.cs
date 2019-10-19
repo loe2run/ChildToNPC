@@ -165,9 +165,6 @@ namespace ChildToNPC
                     childCopy.Position = location;
 
                     farmHouse.addCharacter(childCopy);
-
-                    //I think this should prevent the schedule from not loading on some days?
-                    childCopy.getSchedule(Game1.dayOfMonth);
                 }
             }
         }
@@ -606,6 +603,13 @@ namespace ChildToNPC
         public static bool IsChildNPC(Character c)
         {
             if (copies != null && copies.ContainsValue(c as NPC))
+                return true;
+            return false;
+        }
+
+        public static bool IsChildNPC(NPC npc)
+        {
+            if (copies != null && copies.ContainsValue(npc))
                 return true;
             return false;
         }
