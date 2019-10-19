@@ -52,6 +52,7 @@
     <Compile Include="ModEntry.cs" />
     <Compile Include="NPCFriendshipData.cs" />
     <Compile Include="Patches\NPCArriveAtFarmHousePatch.cs" />
+    <Compile Include="Patches\NPCCheckSchedulePatch.cs" />
     <Compile Include="Patches\NPCParseMasterSchedulePatch.cs" />
     <Compile Include="Patches\NPCPrepareToDisembarkOnNewSchedulePathPatch.cs" />
     <Compile Include="Patches\PFCMoveCharacterPatch.cs" />
