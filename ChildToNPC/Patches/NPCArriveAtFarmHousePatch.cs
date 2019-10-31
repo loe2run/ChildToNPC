@@ -1,5 +1,4 @@
 ﻿using Harmony;
-using Microsoft.Xna.Framework;
 using StardewValley;
 using StardewValley.Locations;
 
@@ -26,27 +25,14 @@ namespace ChildToNPC.Patches
             __instance.controller = null;
 
             //normally endPoint is Game1.timeOfDay >= 2130 ? farmHouse.getSpouseBedSpot() : farmHouse.getKitchenStandingSpot()
-            //I want to come back and find a better solution for this
-            if(Game1.timeOfDay >= 2030)//830 pm
+            //this is normally a controller, not temporaryController (test?)
+            if(Game1.timeOfDay >= 1900)//700 pm
             {
-                int birthNumber = 1;
-                foreach (NPC childCopy in ModEntry.copies.Values)
-                {
-                    if (!__instance.Equals(childCopy))
-                        birthNumber++;
-                    else
-                        return;
-                }
-                string bedSpot = ModEntry.GetBedSpot(birthNumber);
-                int bedX = int.Parse(bedSpot.Substring(0, bedSpot.IndexOf(" ")));
-                int bedY = int.Parse(bedSpot.Substring(bedSpot.IndexOf(" ") + 1, bedSpot.Length));
-                __instance.controller = new PathFindController(__instance, farmHouse, new Point(bedX, bedY), 2);
+                __instance.temporaryController = new PathFindController(__instance, farmHouse, Utility.Vector2ToPoint(__instance.DefaultPosition), 2);
             }
             else
             {
-                int pointX = (int) __instance.DefaultPosition.X / 64;
-                int pointY = (int) __instance.DefaultPosition.Y / 64;
-                __instance.controller = new PathFindController(__instance, farmHouse, new Point(pointX, pointY), 2);
+                __instance.temporaryController = new PathFindController(__instance, farmHouse, farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30), 2);
             }
 
             if (Game1.currentLocation is FarmHouse)
