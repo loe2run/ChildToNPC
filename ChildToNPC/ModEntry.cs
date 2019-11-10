@@ -15,15 +15,18 @@ using StardewValley.Buildings;
 namespace ChildToNPC
 {
     /* To Do:
-     * Let NPCs pathfind around the FarmHouse
+     * Let NPCs pathfind around the FarmHouse?
      * Let NPCs teleport to the spouse area, like spouses do?
+     * Make gifts/talking configurable (how many points to talk, how many gifts per week) 
+     * Multiple Dialogues in a day, like your spouse.
+     * Making children collide the same way the farmer does? to avoid children walking through walls.
      */
-     
+
     /* ChildToNPC is a modding tool which converts a Child to an NPC 
      * for the purposes of creating Content Patcher mods.
      * 
      * ChildToNPC creates an NPC which is outwardly identical to your child
-     * and removes your child from the farmhouse, effectively replacing them.
+     * and removes your child from the farmhouse during the day, effectively replacing them.
      */
 
     /* This mod makes use of IContentPatcherAPI
@@ -36,19 +39,16 @@ namespace ChildToNPC
      * which prevents new NPCs from being wrongfully generated.
      */
 
-    /* This mod makes use of Harmony.
-     * Four of the classes:
-     * NPCArriveAtFarmHousePatch, NPCParseMasterSchedulePatch,
-     * NPCPrepareToDisembarkOnNewSchedulePatch, and PFCMoveCharacterPatch
-     * are what make pathfinding with my custom NPCs possible.
+    /* This mod makes use of Harmony and patches the following methods:
+     * NPC.ArriveAtFarmHouse
+     * NPC.CheckSchedule
+     * NPC.ParseMasterSchedule
+     * NPC.PerformTenMinuteUpdate
+     * NPC.PrepareToDisembarkOnNewSchedulePath
+     * PathfindController.MoveCharacter
      * (These methods should only trigger for custom NPCs)
-     */ 
-
-    /* Future plans:
-     * Make gifts/talking configurable (how many points to talk, how many gifts per week) 
-     * Add automatic pathfinding around the house like spouse?
-     * Customizable term for your child to call you (Mama/Papa, Mommy/Daddy, etc.)
      */
+
     class ModEntry : Mod
     {
         //The age at which the NPC takes over
@@ -59,7 +59,7 @@ namespace ChildToNPC
         public static Dictionary<string, string> children_parents;
         public static IMonitor monitor;
         public static IModHelper helper;
-        public ModConfig Config;
+        public static ModConfig Config;
         public bool spriteUpdateNeeded = true;
 
         public override void Entry(IModHelper helper)
@@ -134,14 +134,14 @@ namespace ChildToNPC
 
                     //Create childCopy, add childCopy to list, add to farmHouse at random spot
                     Point openPoint = farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30);
-                    Point bedPoint = farmHouse.getChildBed(child.Gender);
-                    bedPoint = new Point(bedPoint.X - 1, bedPoint.Y);
-                    Vector2 location = openPoint != null ? new Vector2(openPoint.X * 64f, openPoint.Y * 64f) : new Vector2(bedPoint.X * 64f, bedPoint.Y * 64f);
+                    Point defaultBedPoint = farmHouse.getChildBed(child.Gender);
+                    defaultBedPoint = new Point(defaultBedPoint.X, defaultBedPoint.Y);
+
+                    Vector2 location = openPoint == null ? new Vector2(openPoint.X * 64f, openPoint.Y * 64f) : new Vector2(defaultBedPoint.X * 64f, defaultBedPoint.Y * 64f);
 
                     Dictionary<string, string> dispositions = Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
                     if (dispositions.ContainsKey(child.Name))
                     {
-                        monitor.Log("Dispositions contains " + child.Name + " as kid" + index);
                         string[] defaultPosition = dispositions[child.Name].Split('/')[10].Split(' ');
                         location = new Vector2(int.Parse(defaultPosition[1]) * 64f, int.Parse(defaultPosition[2]) * 64f);
                     }
@@ -182,20 +182,7 @@ namespace ChildToNPC
                     //Add copy at random location in the house
                     copies.TryGetValue(child.Name, out NPC childCopy);
 
-                    Point openPoint = farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30);
-                    Point bedPoint = farmHouse.getBedSpot();
-                    bedPoint = new Point(bedPoint.X - 1, bedPoint.Y);
-                    Vector2 location = openPoint != null ? new Vector2(openPoint.X * 64f, openPoint.Y * 64f) : new Vector2(bedPoint.X * 64f, bedPoint.Y * 64f);
-
-                    Dictionary<string, string> dispositions = Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
-                    if (dispositions.ContainsKey(child.Name))
-                    {
-                        monitor.Log("Dispositions contains " + child.Name + " as kid" + index);
-                        string[] defaultPosition = dispositions[child.Name].Split('/')[10].Split(' ');
-                        location = new Vector2(int.Parse(defaultPosition[1]) * 64f, int.Parse(defaultPosition[2]) * 64f);
-                    }
-
-                    childCopy.Position = location;
+                    childCopy.Position = childCopy.DefaultPosition;
                     farmHouse.addCharacter(childCopy);
                 }
 
@@ -217,17 +204,19 @@ namespace ChildToNPC
                 {
                     try
                     {
+                        //Getting child sprite
                         childCopy.Sprite = new AnimatedSprite("Characters/" + childCopy.Name, 0, 16, 32);
                         spriteUpdateNeeded = false;
 
+                        //Getting/Setting DefaultPosition from Dispositions
                         Dictionary<string, string> dispositions = Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
                         if (dispositions.ContainsKey(childCopy.Name))
                         {
-                            monitor.Log("Dispositions contains " + childCopy.Name + ", childCopy.");
                             string[] defaultPosition = dispositions[childCopy.Name].Split('/')[10].Split(' ');
                             Vector2 location = new Vector2(int.Parse(defaultPosition[1]) * 64f, int.Parse(defaultPosition[2]) * 64f);
 
                             childCopy.Position = location;
+                            childCopy.DefaultPosition = location;
                             farmHouse.characters.Remove(childCopy);
                             farmHouse.addCharacter(childCopy);
                         }
@@ -705,16 +694,12 @@ namespace ChildToNPC
          */
         public static bool IsChildNPC(Character c)
         {
-            if (copies != null && copies.ContainsValue(c as NPC))
-                return true;
-            return false;
+            return (copies != null && copies.ContainsValue(c as NPC));
         }
 
         public static bool IsChildNPC(NPC npc)
         {
-            if (copies != null && copies.ContainsValue(npc))
-                return true;
-            return false;
+            return (copies != null && copies.ContainsValue(npc));
         }
 
         /* GetBirthOrder
@@ -735,8 +720,7 @@ namespace ChildToNPC
     }
 }
 
-//This is a temporary note section while I work this all out.
-//(Maybe this should go on the modding part of the SDV wiki?)
+// (These are some notes for myself about pathfinding.)
 
 /* How does pathfinding work?
  * --------------------------
@@ -771,13 +755,13 @@ namespace ChildToNPC
  * 
  * NPC.checkSchedule(int timeOfDay)
  * ----------------------------
- * This method is one that I've edited before.
- * This method tries to get the schedule for this timeOfDay,
- * and if the NPC passes all checks, sets the PathfindController to the destination.
+ * This method tries to get the schedule for this timeOfDay
+ * and sets the PathfindController to the destination.
+ * (It also handles what to do when a character is "running late")
  * 
  * An important method inside of checkSchedule is NPC.prepareToDisembarkOnNewSchedulePath();
- * This sets the temporary controller to escort the NPC out of the FarmHouse.
- * This sets the controller and schedule to null if the character is on the Farm.
+ * This sets the temporary controller to escort the NPC out of the FarmHouse
+ * and sets the controller and schedule to null if the character is on the Farm.
  * 
  * NPC.performTenMinuteUpdate(int timeOfDay, GameLocation l)
  * -------------------------------------
@@ -790,14 +774,10 @@ namespace ChildToNPC
  * The Farm goes through every AnimalHouse is has, and executes for each animal
  * FarmAnimal.updatePerTenMinutes(Game1.timeOfDay, ...building.indoors);
  * 
- * 
- * 
+ * ----------------------------------------------------------------------------------------------------------------
  * Another factor in what's going on is that when the day starts,
  * the game executes NPC.dayUpdate(int dayOfMonth) for each character.
  * 
  * In this method, the game runs NPC.getSchedule(int dayOfMonth) to set the NPC.Schedule/NPC.schedule.
  * NPC.getSchedule(int dayOfMonth)
- * -------------------------------
- * The game first tries to load "Characters\\schedules\\<Name>",
- * then it chooses which entry on the schedule it should be looking at.
  */

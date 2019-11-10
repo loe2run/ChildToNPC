@@ -123,11 +123,12 @@ namespace ChildToNPC
         public IEnumerable<string> BedGetValue(string input)
         {
             if (input == null || input.Equals(""))
+            {
                 yield return ToddlerBed;
+            }
             else
             {
-                //Input is given as "<MapName> x y"
-                //I need to make sure this is true
+                //Input should be given as "<MapName> x y"
                 CustomToddlerBed = input;
                 yield return CustomToddlerBed;
             }
