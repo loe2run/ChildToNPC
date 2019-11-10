@@ -1,4 +1,5 @@
 ﻿using Harmony;
+using Microsoft.Xna.Framework;
 using StardewValley;
 using StardewValley.Locations;
 
@@ -15,20 +16,18 @@ namespace ChildToNPC.Patches
         public static void Postfix(NPC __instance, FarmHouse farmHouse)
         {
             if (!ModEntry.IsChildNPC(__instance))
-                return; 
-
-            if (Game1.newDay || Game1.timeOfDay <= 630)
                 return;
             
             __instance.setTilePosition(farmHouse.getEntryLocation());
             __instance.temporaryController = null;
-            __instance.controller = null;
+            //__instance.controller = null;
 
             //normally endPoint is Game1.timeOfDay >= 2130 ? farmHouse.getSpouseBedSpot() : farmHouse.getKitchenStandingSpot()
             //this is normally a controller, not temporaryController (test?)
-            if(Game1.timeOfDay >= 1900)//700 pm
+            if(ModEntry.Config.DoChildrenHaveCurfew && Game1.timeOfDay >= ModEntry.Config.CurfewTime)//700 pm by default
             {
-                __instance.temporaryController = new PathFindController(__instance, farmHouse, Utility.Vector2ToPoint(__instance.DefaultPosition), 2);
+                Point bedPoint = new Point((int)__instance.DefaultPosition.X / 64, (int)__instance.DefaultPosition.Y / 64);
+                __instance.temporaryController = new PathFindController(__instance, farmHouse, bedPoint, 2);
             }
             else
             {
