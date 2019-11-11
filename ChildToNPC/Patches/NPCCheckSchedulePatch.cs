@@ -26,19 +26,24 @@ namespace ChildToNPC.Patches
             if (__instance.ignoreScheduleToday || __instance.Schedule == null)
                 return false;
 
-            if (ModEntry.Config.DoChildrenHaveCurfew && timeOfDay == ModEntry.Config.CurfewTime && __instance.currentLocation.Equals(Game1.getLocationFromName("FarmHouse")))
-            {
-                //Should set the curfew pathing instead here?
-                //Currently pathing from the performTenMinuteUpdate
-            }
-            
-            ModEntry.monitor.Log("Checking the schedule, trying " + ___scheduleTimeToTry + " at time " + timeOfDay + ".");
+            SchedulePathDescription schedulePathDescription;
 
-            __instance.Schedule.TryGetValue(___scheduleTimeToTry == 9999999 ? timeOfDay : ___scheduleTimeToTry, out SchedulePathDescription schedulePathDescription);
+            if (ModEntry.Config.DoChildrenHaveCurfew && timeOfDay == ModEntry.Config.CurfewTime && !__instance.currentLocation.Equals(Game1.getLocationFromName("FarmHouse")))
+            {
+                ModEntry.monitor.Log("At the point where I would send child home, generating a curfew schedulePathDescription.");
+                object[] pathfindParams = { __instance.currentLocation.Name, __instance.getTileX(), __instance.getTileY(), "BusStop", -1, 23, 3, null, null };
+                schedulePathDescription = ModEntry.helper.Reflection.GetMethod(__instance, "pathfindToNextScheduleLocation", true).Invoke<SchedulePathDescription>(pathfindParams);
+            }
+            else
+            {
+                ModEntry.monitor.Log("Checking the schedule, trying " + ___scheduleTimeToTry + " at time " + timeOfDay + ".");
+                //I think there's an issue where if there's only one event in the schedule, it doesn't get patched.
+                __instance.Schedule.TryGetValue(___scheduleTimeToTry == 9999999 ? timeOfDay : ___scheduleTimeToTry, out schedulePathDescription);
+            }
+
             if (schedulePathDescription == null)
                 return false;
-
-            ModEntry.monitor.Log("Found a schedulePathDescription for that time.");
+            ModEntry.monitor.Log("Successfully loaded schedulePathDescription.");
 
             //Normally I would see a IsMarried check here, but FarmHouse may be better?
             //(I think this section is meant for handling when the character is still walking)
@@ -60,7 +65,6 @@ namespace ChildToNPC.Patches
             ModEntry.monitor.Log("Preparing to disembark through reflection.");
             //__instance.prepareToDisembarkOnNewSchedulePath();
             ModEntry.helper.Reflection.GetMethod(__instance, "prepareToDisembarkOnNewSchedulePath", true).Invoke(null);
-            ModEntry.monitor.Log("Finishing the preparations.");
 
             if (__instance.Schedule == null)
             {
@@ -72,6 +76,17 @@ namespace ChildToNPC.Patches
             {
                 ___scheduleTimeToTry = 9999999;
                 ModEntry.monitor.Log("Failing to try this time after preparing to Disembark.");
+                ModEntry.monitor.Log(___directionsToNewLocation == null ? "Directions is null." : "Directions is not null.");
+                if(___directionsToNewLocation != null)
+                {
+                    ModEntry.monitor.Log("Directions count: " + ___directionsToNewLocation.route.Count);
+
+                    if (___directionsToNewLocation.route.Count > 0)
+                    {
+                        ModEntry.monitor.Log("Instance Location: " + __instance.getTileLocationPoint().X + ", " + __instance.getTileLocationPoint().Y);
+                        ModEntry.monitor.Log("Peek route end: " + ___directionsToNewLocation.route.Peek().X + ", " + ___directionsToNewLocation.route.Peek().Y);
+                    }
+                }
                 return false;
             }
 
