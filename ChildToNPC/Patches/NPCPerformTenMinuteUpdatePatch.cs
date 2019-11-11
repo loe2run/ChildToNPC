@@ -25,7 +25,8 @@ namespace ChildToNPC
             FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
             if (farmHouse.characters.Contains(__instance))
             {
-                if (ModEntry.Config.DoChildrenHaveCurfew && Game1.timeOfDay == ModEntry.Config.CurfewTime)
+                ModConfig config = ModEntry.Config;
+                if (config.DoChildrenHaveCurfew && Game1.timeOfDay == config.CurfewTime)
                 {
                     __instance.IsWalkingInSquare = false;
                     __instance.Halt();
@@ -38,7 +39,7 @@ namespace ChildToNPC
                     if (__instance.controller.pathToEndPoint == null || !farmHouse.isTileOnMap(__instance.controller.pathToEndPoint.Last().X, __instance.controller.pathToEndPoint.Last().Y))
                         __instance.controller = null;
                 }
-                else if (__instance.controller == null && ModEntry.Config.DoChildrenWander && Game1.timeOfDay % 100 == 0)
+                else if (__instance.controller == null && config.DoChildrenWander && Game1.timeOfDay % 100 == 0 && Game1.timeOfDay < config.CurfewTime)
                 {
                     //When at home & with nothing better to do, children wander around every hour
                     if (!__instance.currentLocation.Equals(Utility.getHomeOfFarmer(Game1.player)))
