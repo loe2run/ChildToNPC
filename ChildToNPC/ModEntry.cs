@@ -207,7 +207,11 @@ namespace ChildToNPC
                         //Getting child sprite
                         childCopy.Sprite = new AnimatedSprite("Characters/" + childCopy.Name, 0, 16, 32);
                         spriteUpdateNeeded = false;
+                    }
+                    catch (Exception) { }
 
+                    try
+                    {
                         //Getting/Setting DefaultPosition from Dispositions
                         Dictionary<string, string> dispositions = Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
                         if (dispositions.ContainsKey(childCopy.Name))

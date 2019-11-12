@@ -81,8 +81,7 @@ namespace ChildToNPC.Patches
                     if (character.temporaryController != null && character.controller != null)
                         character.controller.location = Game1.getLocationFromName(warp.TargetName);
                 }
-
-                ModEntry.monitor.Log("Warping character " + ___character.Name);
+                
                 Game1.warpCharacter(___character as NPC, warp.TargetName, new Vector2((float)warp.TargetX, (float)warp.TargetY));
                 if (__instance.isPlayerPresent() && __instance.location.doors.ContainsKey(new Point(warp.X, warp.Y)))
                     __instance.location.playSoundAt("doorClose", new Vector2((float)warp.X, (float)warp.Y));

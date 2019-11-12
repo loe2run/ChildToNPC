@@ -10,7 +10,7 @@ namespace ChildToNPC
      * Normally, performTenMinuteUpdate just handles the dialogue bubble while walking.
      * I've combined this with code from Child.tenMinuteUpdate to imitate Child behavior.
      * Children will wander around the house every hour.
-     * I've also added a curfew system, so children go home at the (configurable) curfew time.
+     * I've also added a curfew system, so children go to bed at the (configurable) curfew time when at home.
      */
 
     [HarmonyPatch(typeof(NPC))]
@@ -26,6 +26,7 @@ namespace ChildToNPC
             if (farmHouse.characters.Contains(__instance))
             {
                 ModConfig config = ModEntry.Config;
+                //Send children to bed when inside home
                 if (config.DoChildrenHaveCurfew && Game1.timeOfDay == config.CurfewTime)
                 {
                     __instance.IsWalkingInSquare = false;
@@ -39,9 +40,9 @@ namespace ChildToNPC
                     if (__instance.controller.pathToEndPoint == null || !farmHouse.isTileOnMap(__instance.controller.pathToEndPoint.Last().X, __instance.controller.pathToEndPoint.Last().Y))
                         __instance.controller = null;
                 }
+                //Make children wander if they have nothing better to do
                 else if (__instance.controller == null && config.DoChildrenWander && Game1.timeOfDay % 100 == 0 && Game1.timeOfDay < config.CurfewTime)
                 {
-                    //When at home & with nothing better to do, children wander around every hour
                     if (!__instance.currentLocation.Equals(Utility.getHomeOfFarmer(Game1.player)))
                         return true;
 
