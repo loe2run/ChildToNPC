@@ -41,7 +41,6 @@ namespace ChildToNPC.Patches
             //This replaces the rawData with whatever entry the GOTO requested
             if (events[0].Contains("GOTO"))
             {
-                ModEntry.monitor.Log("ParseMasterSchedule for " + rawData + ", " + "Starts with a GOTO message.");
                 string whereToGo = events[0].Split(' ')[1];
                 if (whereToGo.ToLower().Equals("season"))
                     whereToGo = Game1.currentSeason;
@@ -60,8 +59,6 @@ namespace ChildToNPC.Patches
             //Tells you to skip this entry if the friendship isn't set
             if (events[0].Contains("NOT"))
             {
-                ModEntry.monitor.Log("ParseMasterSchedule for " + rawData + ", " + "Starts with a NOT friendship message."); 
-
                 string[] friendshipData = events[0].Split(' ');
                 if (friendshipData[1].ToLower() == "friendship")
                 {
@@ -91,8 +88,6 @@ namespace ChildToNPC.Patches
             //Handles the GOTO if friendship change happened
             if (events[index].Contains("GOTO"))
             {
-                ModEntry.monitor.Log("ParseMasterSchedule for " + rawData + ", " + "Has GOTO message, second check.");
-
                 string whereToGo = events[index].Split(' ')[1];
                 if (whereToGo.ToLower().Equals("season"))
                     whereToGo = Game1.currentSeason;
@@ -105,14 +100,12 @@ namespace ChildToNPC.Patches
             Point point = new Point(0, 23);
             string startingLocation = "BusStop";
 
-            ModEntry.monitor.Log("ParseMasterSchedule for " + rawData + ", " + "Going through each event.");
             //Go through each of the events, parse them.
             for (int i = index; i < events.Length/* && events.Length > 1*/; ++i)
             {
                 string[] currentEvent = events[i].Split(' ');
 
                 int time = Convert.ToInt32(currentEvent[0]);
-                ModEntry.monitor.Log("ParseMasterSchedule for " + events[i] + ", " + "Time is " + time);
                 string locationName = currentEvent[1];
                 string endBehavior = null;
                 string endMessage = null;
@@ -120,12 +113,9 @@ namespace ChildToNPC.Patches
                 //If there is no location name, skips straight to position
                 if (int.TryParse(locationName, out int result))
                     locationName = startingLocation;
-                ModEntry.monitor.Log("ParseMasterSchedule for " + events[i] + ", " + "LocationName is " + locationName);
 
                 int positionX = Convert.ToInt32(currentEvent[2]);
                 int positionY = Convert.ToInt32(currentEvent[3]);
-
-                ModEntry.monitor.Log("ParseMasterSchedule for " + events[i] + ", " + "Position is " + positionX + " " + positionY);
 
                 int endIndex = 4;
                 int facingDirection;
@@ -140,16 +130,11 @@ namespace ChildToNPC.Patches
                     facingDirection = 2;
                 }
 
-                ModEntry.monitor.Log("ParseMasterSchedule for " + events[i] + ", " + "FacingDirection is " + facingDirection);
-
                 object[] param = { locationName, positionX, positionY, facingDirection };
-                ModEntry.monitor.Log("param, before: " + locationName + ", " + positionX + ", " + positionY + ", " + facingDirection);
                 bool accessibleChange = ModEntry.helper.Reflection.GetMethod(__instance, "changeScheduleForLocationAccessibility", true).Invoke<bool>(param);
-                ModEntry.monitor.Log("param, after: " + locationName + ", " + positionX + ", " + positionY + ", " + facingDirection);
 
                 if (accessibleChange)
                 {
-                    ModEntry.monitor.Log("ParseMasterSchedule for " + events[i] + ", " + "Changed for accessibility.");
                     if (scheduleFromName.ContainsKey("default"))
                     {
                         __result = ModEntry.helper.Reflection.GetMethod(__instance, "parseMasterSchedule", true).Invoke<Dictionary<int, SchedulePathDescription>>(new object[] { scheduleFromName["default"] });
@@ -165,22 +150,17 @@ namespace ChildToNPC.Patches
                     if (currentEvent[endIndex].Length > 0 && currentEvent[endIndex][0] == '"')
                     {
                         endMessage = events[i].Substring(events[i].IndexOf('"'));
-                        ModEntry.monitor.Log("ParseMasterSchedule for " + events[i] + ", " + "endMessage is " + endMessage);
                     }
                     else
                     {
                         endBehavior = currentEvent[endIndex];
                         if (endIndex + 1 < currentEvent.Length && currentEvent[endIndex + 1].Length > 0 && currentEvent[endIndex + 1][0] == '"')
                             endMessage = events[i].Substring(events[i].IndexOf('"')).Replace("\"", "");
-                        
-                        ModEntry.monitor.Log("ParseMasterSchedule for " + events[i] + ", " + "endBehavior is " + endBehavior);
-                        ModEntry.monitor.Log("ParseMasterSchedule for " + events[i] + ", " + "endMessage is " + endMessage);
                     }
                 }
 
                 //Add this time event to the dictionary
                 dictionary.Add(time, ModEntry.helper.Reflection.GetMethod(__instance, "pathfindToNextScheduleLocation", true).Invoke<SchedulePathDescription>(new object[] { startingLocation, point.X, point.Y, locationName, positionX, positionY, facingDirection, endBehavior, endMessage }));
-                ModEntry.monitor.Log("ParseMasterSchedule for " + events[i] + ", " + "Added this event to dictionary: " + time);
                 //Then pretend this character has completed that appt, check next appt
                 point.X = positionX;
                 point.Y = positionY;

@@ -30,15 +30,6 @@ namespace ChildToNPC.Patches
                 };
                 if (__instance.temporaryController.pathToEndPoint == null || __instance.temporaryController.pathToEndPoint.Count <= 0)
                 {
-                    if(__instance.temporaryController.pathToEndPoint == null)
-                    {
-                        ModEntry.monitor.Log("In NPC PrepareToDisembark patch, PathToEndPoint is null.");
-                    }
-                    else
-                    {
-                        ModEntry.monitor.Log("In NPC PrepareToDisembark patch, PathToEndPoint is not null.");
-                        ModEntry.monitor.Log("PathToEndPoint Count is: " + __instance.temporaryController.pathToEndPoint.Count);
-                    }
                     __instance.temporaryController = null;
                     __instance.Schedule = null;
                 }
