@@ -1,0 +1,125 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <Import Project="find-game-folder.targets" />
+  <UsingTask TaskName="DeployModTask" AssemblyFile="SMAPI.ModBuildConfig.dll" />
+
+
+  <!--*********************************************
+  ** Set build options
+  **********************************************-->
+  <PropertyGroup>
+    <!-- include PDB file by default to enable line numbers in stack traces -->
+    <DebugType>pdbonly</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+
+    <!-- recognise XNA Framework DLLs in the GAC (only affects mods using new csproj format) -->
+    <AssemblySearchPaths>$(AssemblySearchPaths);{GAC}</AssemblySearchPaths>
+
+    <!-- set default package options -->
+    <ModFolderName Condition="'$(ModFolderName)' == ''">$(MSBuildProjectName)</ModFolderName>
+    <ModZipPath Condition="'$(ModZipPath)' == ''">$(TargetDir)</ModZipPath>
+    <EnableModDeploy Condition="'$(EnableModDeploy)' == ''">true</EnableModDeploy>
+    <EnableModZip Condition="'$(EnableModZip)' == ''">true</EnableModZip>
+    <EnableHarmony Condition="'$(EnableModZip)' == ''">false</EnableHarmony>
+    <EnableGameDebugging Condition="$(EnableGameDebugging) == ''">true</EnableGameDebugging>
+    <CopyModReferencesToBuildOutput Condition="'$(CopyModReferencesToBuildOutput)' == '' OR ('$(CopyModReferencesToBuildOutput)' != 'true' AND '$(CopyModReferencesToBuildOutput)' != 'false')">false</CopyModReferencesToBuildOutput>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(OS) == 'Windows_NT' AND $(EnableGameDebugging) == 'true'">
+    <!-- enable game debugging -->
+    <StartAction>Program</StartAction>
+    <StartProgram>$(GamePath)\StardewModdingAPI.exe</StartProgram>
+    <StartWorkingDirectory>$(GamePath)</StartWorkingDirectory>
+  </PropertyGroup>
+
+
+  <!--*********************************************
+  ** Add assembly references
+  **********************************************-->
+  <!-- common -->
+  <ItemGroup>
+    <Reference Include="$(GameExecutableName)">
+      <HintPath>$(GamePath)\$(GameExecutableName).exe</HintPath>
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+    <Reference Include="StardewValley.GameData">
+      <HintPath>$(GamePath)\StardewValley.GameData.dll</HintPath>
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+    <Reference Include="StardewModdingAPI">
+      <HintPath>$(GamePath)\StardewModdingAPI.exe</HintPath>
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+    <Reference Include="SMAPI.Toolkit.CoreInterfaces">
+      <HintPath>$(GamePath)\smapi-internal\SMAPI.Toolkit.CoreInterfaces.dll</HintPath>
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+    <Reference Include="xTile">
+      <HintPath>$(GamePath)\xTile.dll</HintPath>
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+    <Reference Include="0Harmony" Condition="'$(EnableHarmony)' == 'true'">
+      <HintPath>$(GamePath)\smapi-internal\0Harmony.dll</HintPath>
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Windows -->
+  <ItemGroup Condition="$(OS) == 'Windows_NT'">
+    <Reference Include="Microsoft.Xna.Framework, Version=4.0.0.0, Culture=neutral, PublicKeyToken=842cf8be1de50553, processorArchitecture=x86">
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+    <Reference Include="Microsoft.Xna.Framework.Game, Version=4.0.0.0, Culture=neutral, PublicKeyToken=842cf8be1de50553, processorArchitecture=x86">
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+    <Reference Include="Microsoft.Xna.Framework.Graphics, Version=4.0.0.0, Culture=neutral, PublicKeyToken=842cf8be1de50553, processorArchitecture=x86">
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+    <Reference Include="Microsoft.Xna.Framework.Xact, Version=4.0.0.0, Culture=neutral, PublicKeyToken=842cf8be1de50553, processorArchitecture=x86">
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+    <Reference Include="Netcode">
+      <HintPath>$(GamePath)\Netcode.dll</HintPath>
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Linux/Mac -->
+  <ItemGroup Condition="$(OS) != 'Windows_NT'">
+    <Reference Include="MonoGame.Framework">
+      <HintPath>$(GamePath)\MonoGame.Framework.dll</HintPath>
+      <Private>$(CopyModReferencesToBuildOutput)</Private>
+    </Reference>
+  </ItemGroup>
+
+
+  <!--*********************************************
+  ** Show friendly error for invalid OS or game path
+  **********************************************-->
+  <Target Name="BeforeBuild">
+    <Error Condition="'$(OS)' != 'OSX' AND '$(OS)' != 'Unix' AND '$(OS)' != 'Windows_NT'" Text="The mod build package doesn't recognise OS type '$(OS)'." />
+
+    <Error Condition="!Exists('$(GamePath)')" Text="The mod build package can't find your game folder. You can specify where to find it; see https://smapi.io/package/custom-game-path." />
+    <Error Condition="!Exists('$(GamePath)\$(GameExecutableName).exe')" Text="The mod build package found a game folder at $(GamePath), but it doesn't contain the $(GameExecutableName) file. If this folder is invalid, delete it and the package will autodetect another game install path." />
+    <Error Condition="!Exists('$(GamePath)\StardewModdingAPI.exe')" Text="The mod build package found a game folder at $(GamePath), but it doesn't contain SMAPI. You need to install SMAPI before building the mod." />
+  </Target>
+
+
+  <!--*********************************************
+  ** Deploy mod files & create release zip
+  **********************************************-->
+  <Target Name="AfterBuild">
+    <DeployModTask
+      ModFolderName="$(ModFolderName)"
+      ModZipPath="$(ModZipPath)"
+
+      EnableModDeploy="$(EnableModDeploy)"
+      EnableModZip="$(EnableModZip)"
+
+      ProjectDir="$(ProjectDir)"
+      TargetDir="$(TargetDir)"
+      GameDir="$(GamePath)"
+      IgnoreModFilePatterns="$(IgnoreModFilePatterns)"
+    />
+  </Target>
+</Project>
