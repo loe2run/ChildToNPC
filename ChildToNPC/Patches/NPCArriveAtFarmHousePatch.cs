@@ -16,6 +16,10 @@ namespace ChildToNPC.Patches
             if (!ModEntry.IsChildNPC(__instance))
                 return;
 
+            /* Code from NPC.arriveAtFarmHouse */
+            if (Game1.newDay || Game1.timeOfDay <= 630)
+                return;
+
             __instance.setTilePosition(farmHouse.getEntryLocation());
             __instance.ignoreScheduleToday = true;
             __instance.temporaryController = null;
@@ -29,13 +33,23 @@ namespace ChildToNPC.Patches
             }
             else
             {
-                __instance.controller = new PathFindController(__instance, farmHouse, farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30), 2);
+                Point randomPoint = farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30);
+                Point bedPoint = new Point((int)__instance.DefaultPosition.X / 64, (int)__instance.DefaultPosition.Y / 64);
+                if (!randomPoint.Equals(Point.Zero))
+                    __instance.controller = new PathFindController(__instance, farmHouse, randomPoint, 2);
+                else
+                    __instance.controller = new PathFindController(__instance, farmHouse, bedPoint, 2);
             }
 
             if(__instance.controller.pathToEndPoint == null)
             {
                 __instance.willDestroyObjectsUnderfoot = true;
-                __instance.controller = new PathFindController(__instance, farmHouse, farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30), 0);
+                Point randomPoint = farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30);
+                Point bedPoint = new Point((int)__instance.DefaultPosition.X / 64, (int)__instance.DefaultPosition.Y / 64);
+                if (!randomPoint.Equals(Point.Zero))
+                    __instance.controller = new PathFindController(__instance, farmHouse, randomPoint, 0);
+                else
+                    __instance.controller = new PathFindController(__instance, farmHouse, bedPoint, 2);
                 //__instance.setNewDialogue(Game1.LoadStringByGender(__instance.Gender, "Strings\\StringsFromCSFiles:NPC.cs.4500"), false, false);
             }
 
