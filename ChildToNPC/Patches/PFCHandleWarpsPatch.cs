@@ -17,6 +17,8 @@ namespace ChildToNPC.Patches
             if (!ModEntry.IsChildNPC(___character))
                 return true;
 
+            /* Code from PathFindController.handleWarps */
+
             Warp warp = __instance.location.isCollidingWithWarpOrDoor(position);
             if (warp == null)
                 return false;

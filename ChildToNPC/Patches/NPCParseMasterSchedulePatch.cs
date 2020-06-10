@@ -14,17 +14,18 @@ namespace ChildToNPC.Patches
      */
     class NPCParseMasterSchedulePatch
     {
-        public static bool Prefix(NPC __instance, ref Dictionary<int, SchedulePathDescription> __result, string rawData,
-            List<List<string>> ___routesFromLocationToLocation)
+        public static bool Prefix(NPC __instance, ref Dictionary<int, SchedulePathDescription> __result, string rawData)
         {
             if (!ModEntry.IsChildNPC(__instance))
                 return true;
+
+            /* Code from NPC.parseMasterSchedule */
 
             string[] events = rawData.Split('/');
             int index = 0;
             Dictionary<int, SchedulePathDescription> dictionary = new Dictionary<int, SchedulePathDescription>();
 
-            Dictionary<string, string> scheduleFromName = null;
+            Dictionary<string, string> scheduleFromName;
             try
             {
                 scheduleFromName = Game1.content.Load<Dictionary<string, string>>("Characters\\schedules\\" + __instance.Name);
@@ -35,8 +36,8 @@ namespace ChildToNPC.Patches
                 return true;
             }
 
-            //Example: "GOTO Tue" or "GOTO spring" says which entry to use
-            //This replaces the rawData with whatever entry the GOTO requested
+            // Example: "GOTO Tue" or "GOTO spring" says which entry to use
+            // This replaces the rawData with whatever entry the GOTO requested
             if (events[0].Contains("GOTO"))
             {
                 string whereToGo = events[0].Split(' ')[1];
@@ -48,6 +49,7 @@ namespace ChildToNPC.Patches
                 }
                 catch (Exception)
                 {
+                    // return this.parseMasterSchedule(this.getMasterScheduleEntry("spring"));
                     __result = ModEntry.helper.Reflection.GetMethod(__instance, "parseMasterSchedule", true).Invoke<Dictionary<int, SchedulePathDescription>>(new object[] { scheduleFromName["spring"] });
                     return false;
                 }
@@ -60,20 +62,26 @@ namespace ChildToNPC.Patches
                 string[] friendshipData = events[0].Split(' ');
                 if (friendshipData[1].ToLower() == "friendship")
                 {
-                    string name = friendshipData[2];
-                    int hearts = Convert.ToInt32(friendshipData[3]);
                     bool farmerHasHearts = false;
-                    foreach (Farmer allFarmer in Game1.getAllFarmers())
+                    for (int i = 2; i < friendshipData.Length; i += 2)
                     {
-                        if (allFarmer.getFriendshipLevelForNPC(name) >= hearts)
+                        string name = friendshipData[i];
+                        int hearts = Convert.ToInt32(friendshipData[i + 1]);
+                        foreach (Farmer allFarmer in Game1.getAllFarmers())
                         {
-                            farmerHasHearts = true;
-                            break;
+                            if (allFarmer.getFriendshipLevelForNPC(name) >= hearts)
+                            {
+                                farmerHasHearts = true;
+                                break;
+                            }
                         }
+                        if (farmerHasHearts)
+                            break;
                     }
 
-                    if (!farmerHasHearts)
+                    if (farmerHasHearts)
                     {
+                        // return this.parseMasterSchedule(this.getMasterScheduleEntry("spring"));
                         __result = ModEntry.helper.Reflection.GetMethod(__instance, "parseMasterSchedule", true).Invoke<Dictionary<int, SchedulePathDescription>>(new object[] { scheduleFromName["spring"] });
                         return false;
                     }
@@ -104,8 +112,9 @@ namespace ChildToNPC.Patches
                     __result = null;
                     return false;
                 }
-                events = scheduleFromName[whereToGo].Split('/');
-                index = 1;
+                // return this.parseMasterSchedule(this.getMasterScheduleEntry(currentSeason));
+                __result = ModEntry.helper.Reflection.GetMethod(__instance, "parseMasterSchedule", true).Invoke<Dictionary<int, SchedulePathDescription>>(new object[] { scheduleFromName[whereToGo] });
+                return false;
             }
 
             //Point point = this.isMarried() ? new Point(0, 23) : new Point((int)this.defaultPosition.X / 64, (int)this.defaultPosition.Y / 64);
@@ -114,7 +123,7 @@ namespace ChildToNPC.Patches
             string startingLocation = "BusStop";
 
             //Go through each of the events, parse them.
-            for (int i = index; i < events.Length/* && events.Length > 1*/; ++i)
+            for (int i = index; i < events.Length && events.Length > 1; ++i)
             {
                 string[] currentEvent = events[i].Split(' ');
 
@@ -124,7 +133,7 @@ namespace ChildToNPC.Patches
                 string endMessage = null;
 
                 //If there is no location name, skips straight to position
-                if (int.TryParse(locationName, out int result))
+                if (int.TryParse(locationName, out int _))
                     locationName = startingLocation;
 
                 int positionX = Convert.ToInt32(currentEvent[2]);
@@ -132,7 +141,6 @@ namespace ChildToNPC.Patches
 
                 int endIndex = 4;
                 int facingDirection;
-
                 try
                 {
                     facingDirection = Convert.ToInt32(currentEvent[4]);
@@ -143,6 +151,7 @@ namespace ChildToNPC.Patches
                     facingDirection = 2;
                 }
 
+                // if (this.changeScheduleForLocationAccessibility(ref locationName, ref int32_2, ref int32_3, ref facingDirection))
                 object[] param = { locationName, positionX, positionY, facingDirection };
                 bool accessibleChange = ModEntry.helper.Reflection.GetMethod(__instance, "changeScheduleForLocationAccessibility", true).Invoke<bool>(param);
 
@@ -157,7 +166,7 @@ namespace ChildToNPC.Patches
                     return false;
                 }
 
-                //830 ArchaeologyHouse 17 9 2 penny_read \"Strings\\schedules\\Penny:marriageJob.000\"
+                // An example of this: 830 ArchaeologyHouse 17 9 2 penny_read \"Strings\\schedules\\Penny:marriageJob.000\"
                 if (currentEvent.Length > endIndex)
                 {
                     if (currentEvent[endIndex].Length > 0 && currentEvent[endIndex][0] == '"')
@@ -172,9 +181,9 @@ namespace ChildToNPC.Patches
                     }
                 }
 
-                //Add this time event to the dictionary
+                // Add this time event to the dictionary
                 dictionary.Add(time, ModEntry.helper.Reflection.GetMethod(__instance, "pathfindToNextScheduleLocation", true).Invoke<SchedulePathDescription>(new object[] { startingLocation, point.X, point.Y, locationName, positionX, positionY, facingDirection, endBehavior, endMessage }));
-                //Then pretend this character has completed that appt, check next appt
+                // Then pretend this character has completed that appt, check next appt
                 point.X = positionX;
                 point.Y = positionY;
                 startingLocation = locationName;
