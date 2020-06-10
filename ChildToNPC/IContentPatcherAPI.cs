@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using Microsoft.Xna.Framework;
 using StardewModdingAPI;
+using StardewModdingAPI.Utilities;
+using StardewValley;
+using StardewValley.Characters;
 
 namespace ChildToNPC
 {
@@ -14,139 +18,279 @@ namespace ChildToNPC
         /// <param name="name">The token name. This only needs to be unique for your mod; Content Patcher will prefix it with your mod ID automatically, like <c>Pathoschild.ExampleMod/SomeTokenName</c>.</param>
         /// <param name="getValue">A function which returns the current token value. If this returns a null or empty list, the token is considered unavailable in the current context and any patches or dynamic tokens using it are disabled.</param>
         void RegisterToken(IManifest mod, string name, Func<IEnumerable<string>> getValue);
-
-        /// <summary>Register a token.</summary>
-        /// <param name="mod">The manifest of the mod defining the token (see <see cref="Mod.ModManifest"/> on your entry class).</param>
-        /// <param name="name">The token name. This only needs to be unique for your mod; Content Patcher will prefix it with your mod ID automatically, like <c>Pathoschild.ExampleMod/SomeTokenName</c>.</param>
-        /// <param name="updateContext">A function which updates the token value (if needed), and returns whether the token changed. Content Patcher will call this method once when it's updating the context (e.g. when a new day starts). The token is 'changed' if it may return a different value *for the same inputs* than before; it's important to report a change correctly, since Content Patcher will use this to decide whether patches need to be rechecked.</param>
-        /// <param name="isReady">A function which returns whether the token is available for use. This is always called after <paramref name="updateContext"/>. If this returns false, any patches or dynamic tokens using this token will be disabled. (A token may return true and still have no value, in which case the token value is simply blank.)</param>
-        /// <param name="getValue">A function which returns the current value for a given input argument (if any). For example, <c>{{your-mod-id/PlayerInitials}}</c> would result in a null input argument; <c>{{your-mod-id/PlayerInitials:{{PlayerName}}}}</c> would pass in the parsed string after token substitution, like <c>"John Smith"</c>. If the token doesn't use input arguments, you can simply ignore the input.</param>
-        /// <param name="allowsInput">Whether the player can provide an input argument (see <paramref name="getValue"/>).</param>
-        /// <param name="requiresInput">Whether the token can *only* be used with an input argument (see <paramref name="getValue"/>).</param>
-        void RegisterToken(IManifest mod, string name, Func<bool> updateContext, Func<bool> isReady, Func<string, IEnumerable<string>> getValue, bool allowsInput, bool requiresInput);
     }
 
-    /* ChildToken class
-     * This class keeps track of the name and birthday of a toddler
-     * (For multiple toddlers, this class is generated multiple times)
-     *
-     * The issue with this class is that it needs to check child information,
-     * but simultaneously, ModEntry is messing with child information.
-     * Therefore, I have to ask ModEntry directly.
-     * (ModEntry handles the safety of the information)
-     */ 
+    /* ChildToken keeps track of the child's information for Content Patcher tokens.
+     */
     internal class ChildToken
     {
-        private readonly int childNumber;
-        private string ToddlerName;
-        private string ToddlerBirthday;
-        private string ToddlerBed;
-        private string ToddlerGender;
-        private string ToddlerParent;
+        /* Used to track an individual child token */
+        private readonly int ChildNumber;
+        /* Has this token's values been successfully initialized? 
+         * Tokens are registered before a save file is loaded,
+         * so this signals whether the token holds any values yet. */
+        private bool Initialized;
 
-        private string CustomToddlerBed = null;
-        private string TotalChildren;
+        /* Token values which are initialized once */
+        private string NameNPC;
+        private string Name;
+        private string Birthday;
+        private string Gender;
+        private string Parent;
+
+        /* Token values which need to be updated */
+        private string DaysOld;
+        private string Bed;
 
         public ChildToken(int childNumberIn)
         {
-            childNumber = childNumberIn;
+            ChildNumber = childNumberIn;
+            Initialized = false;
         }
 
-        public bool IsReady()
+        /*
+         * 
+         */
+        public bool InitializeChildToken()
         {
-            NameUpdateContext();
-            BirthdayUpdateContext();
-            BedUpdateContext();
-            GenderUpdateContext();
-            ParentUpdateContext();
-            TotalChildrenUpdateContext();
-            return ToddlerName != null;
-        }
-
-        public bool NameUpdateContext()
-        {
-            string lastUpdateName = ToddlerName;
-            ToddlerName = ModEntry.GetChildNPCName(childNumber);
-            return ToddlerName != lastUpdateName;
-        }
-
-        public bool BirthdayUpdateContext()
-        {
-            string lastUpdateBirthday = ToddlerBirthday;
-            ToddlerBirthday = ModEntry.GetChildNPCBirthday(childNumber);
-            return ToddlerBirthday != lastUpdateBirthday;
-        }
-
-        //If the Bed value has been customized, I don't update it.
-        public bool BedUpdateContext()
-        {
-            if (CustomToddlerBed != null)
+            // Initialize the token only if the child information is available
+            Child child = ModEntry.GetChild(ChildNumber);
+            if (child == null)
                 return false;
-            
-            string lastUpdateBed = ToddlerBed;
-            ToddlerBed = ModEntry.GetBedSpot(childNumber);
-            return ToddlerBed != lastUpdateBed;
-        }
 
-        public bool GenderUpdateContext()
-        {
-            string lastUpdateGender = ToddlerGender;
-            ToddlerGender = ModEntry.GetChildNPCGender(childNumber);
-            return ToddlerGender != lastUpdateGender;
-        }
+            // Get the name of the child (npc name)
+            NameNPC = ModEntry.tokens[ChildNumber-1];
 
-        public bool ParentUpdateContext()
-        {
-            string lastUpdateParent = ToddlerParent;
-            ToddlerParent = ModEntry.GetChildNPCParent(childNumber);
-            return ToddlerParent != lastUpdateParent;
-        }
+            // Get the name of the child (display name)
+            Name = child.displayName;
 
-        public bool TotalChildrenUpdateContext()
-        {
-            string lastUpdateTotalChildren = TotalChildren;
-            TotalChildren = ModEntry.GetTotalChildren();
-            return TotalChildren != lastUpdateTotalChildren;
-        }
+            // Get the gender of the child
+            Gender = (child.Gender == 0) ? "male" : "female";
 
-        public IEnumerable<string> NameGetValue(string input)
-        {
-            yield return ToddlerName;
-        }
-
-        public IEnumerable<string> BirthdayGetValue(string input)
-        {
-            yield return ToddlerBirthday;
-        }
-
-        //I should come back to this, it needs work
-        public IEnumerable<string> BedGetValue(string input)
-        {
-            if (input == null || input.Equals(""))
-            {
-                yield return ToddlerBed;
-            }
+            // Get the parent's name for the child
+            if (ModEntry.parents.TryGetValue(child.Name, out string parentName))
+                Parent = parentName;
+            else if (Game1.player.spouse != null && Game1.player.spouse.Length > 0)
+                Parent = Game1.player.spouse;
             else
+                Parent = "Abigail";
+            
+            // Get the birthday of the child
+            SDate today = new SDate(Game1.dayOfMonth, Game1.currentSeason, Game1.year);
+            SDate birthday = new SDate(1, "spring");
+            try
             {
-                //Input should be given as "<MapName> x y"
-                CustomToddlerBed = input;
-                yield return CustomToddlerBed;
+                birthday = today.AddDays(-child.daysOld);
+            }
+            catch (ArithmeticException) { }
+            Birthday = birthday.Season + " " + birthday.Day;
+
+            // Get the current age (in days old) of the child
+            DaysOld = child.daysOld.Value.ToString();
+
+            // Get the current bed position for the child
+            Bed = GetBed(child);
+
+            // Successfully initialized the child data
+            Initialized = true;
+            return true;
+        }
+
+        /*
+         * 
+         */
+        public bool IsInitialized()
+        {
+            return Initialized;
+        }
+
+        /*
+         * 
+         */ 
+        public void UpdateChildToken()
+        {
+            // Update the token only if the child information is available
+            Child child = ModEntry.GetChild(ChildNumber);
+
+            if (child != null)
+            {
+                // Update the number of days old
+                DaysOld = child.daysOld.Value.ToString();
+
+                // Update the bed position based on new sibling
+                Bed = GetBed(child);
             }
         }
 
-        public IEnumerable<string> GenderGetValue(string input)
+        /*
+         * 
+         */
+        public void ClearToken()
         {
-            yield return ToddlerGender;
+            // Remove all data from this save file
+            Initialized = false;
+            NameNPC = null;
+            Name = null;
+            Birthday = null;
+            Gender = null;
+            Parent = null;
+            DaysOld = null;
+            Bed = null;
         }
 
-        public IEnumerable<string> ParentGetValue(string input)
+        /* GetBedPoint
+         * Returns Bed information in the form of a Point (instead of string).
+         * Requires that Context.IsWorldReady and child is not null.
+         * Returns Point.Zero on failure, a non-zero point on success.
+         */
+        public Point GetBedPoint(Child child)
         {
-            yield return ToddlerParent;
+            if (child.Age < 3)
+                return Point.Zero;
+
+            int toddler = 0;
+
+            //Children above the age check + children below the age check
+            List<Child> children = ModEntry.allChildren;
+            if (children == null)
+                return Point.Zero;
+
+            // Get a count of who is sleeping in beds, who is in crib
+            foreach (Child c in children)
+            {
+                if (c.Age >= 3)
+                    toddler++;
+            }
+
+            /* Overview:
+             * First child gets first bed. Second child gets second bed.
+             * Once third is born, tries to share with first child.
+             * (Siblings try to share with same gender siblings first.)
+             * If they can't share, tries to share with second child.
+             * If they can't share, third shares with first child anyway.
+             * Once fourth is born, fills in the last open space.
+             */
+            Point bed1 = new Point(23, 5); // Right side of bed 1 (left bed)
+            Point share1 = new Point(22, 5); // Left side of bed 1 (left bed)
+            Point bed2 = new Point(27, 5); // Right side of bed 2 (right bed)
+            Point share2 = new Point(26, 5); // Left side of bed 2 (right bed)
+
+            if (ChildNumber == 1)
+                return bed1; // Child1 always gets right side of bed 1
+
+            if (toddler == 2)
+                return bed2; // Child1 gets bed 1, Child2 gets bed 2
+
+            // More than 2 kids and first two share gender
+            if (children[0].Gender == children[1].Gender)
+            {
+                if (ChildNumber == 2)
+                    return share1; // Child1 and Child2 share bed 1
+                else if (ChildNumber == 3)
+                    return bed2; // Child3 and Child4 share bed 2
+                else
+                    return share2;
+            }
+            // More than 2 kids and first two don't share gender
+            if (ChildNumber == 2)
+                return bed2; // Child1 gets bed 1, Child2 gets bed 2
+
+            // More than 2 kids, Child1 and Child2 can't share, Child2 and Child3 can share
+            if (ModEntry.allChildren[1].Gender == ModEntry.allChildren[2].Gender)
+            {
+                if (ChildNumber == 3)
+                    return share2; // Child2 and Child3 share bed 2
+                else
+                    return share1; // Child1 and Child4 share bed 1
+            }
+
+            // More than 2 kids, Child1 and Child2 can't share, Child2 and Child3 can't share
+            if (ChildNumber == 3)
+                return share1; // Child1 and Child3 share bed 1
+
+            return share2; // Child2 and Child4 share bed 2
         }
 
-        public IEnumerable<string> TotalChildrenGetValue(string input)
+        /* GetBed
+         * Converts the Point value from GetBedPoint to a string "FarmHouse X Y"
+         */
+        private string GetBed(Child child)
         {
-            yield return TotalChildren;
+            Point bedPoint = GetBedPoint(child);
+            if (bedPoint.Equals(Point.Zero))
+                return null;
+            return "FarmHouse " + bedPoint.X + " " + bedPoint.Y;
+        }
+
+        /* GetChildNPC:
+         * Returns the NPC's name of the numbered child
+         */ 
+        public IEnumerable<string> GetChild()
+        {
+            if (NameNPC != null)
+                return new[] { NameNPC };
+            return null;
+        }
+
+        /* GetChildName:
+         * Returns the name of the numbered child
+         */
+        public IEnumerable<string> GetChildName()
+        {
+            if (Name != null)
+                return new[] { Name };
+            return null;
+        }
+
+        /* GetChildBirthday:
+         * Returns the birthday of the numbered child (Spring 1 if out of bounds)
+         */
+        public IEnumerable<string> GetChildBirthday()
+        {
+            if (Birthday != null)
+                return new[] { Birthday };
+            return null;
+        }
+
+        /* GetChildGender:
+         * Returns the gender "male" or "female" of the numbered child
+         */
+        public IEnumerable<string> GetChildGender()
+        {
+            if (Gender != null)
+                return new[] { Gender };
+            return null;
+        }
+
+        /* GetChildParent:
+         * Returns the name of the parent, by config or by default
+         */
+        public IEnumerable<string> GetChildParent()
+        {
+            if (Parent != null)
+                return new[] { Parent };
+            return null;
+        }
+
+        /* GetChildBed: used to get child's bed location
+         * Returns the age of the child in days old.
+         */
+        public IEnumerable<string> GetChildDaysOld()
+        {
+            if (DaysOld != null)
+                return new[] { DaysOld };
+            return null;
+        }
+
+        /* GetChildBed:
+         * Returns the bed location in the form of "FarmHouse x y"
+         * I'm not entirely sure how this will go for non-toddlers, I'll return null for now.
+         */
+        public IEnumerable<string> GetChildBed()
+        {
+            if (Bed != null)
+                return new[] { Bed };
+            return null;
         }
     }
 }
