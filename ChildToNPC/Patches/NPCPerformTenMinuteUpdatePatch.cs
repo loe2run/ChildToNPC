@@ -6,50 +6,37 @@ using StardewValley.Locations;
 namespace ChildToNPC.Patches
 {
     /* Prefix for performTenMinuteUpdate
+     * 
      * Normally, performTenMinuteUpdate just handles the dialogue bubble while walking.
-     * I've combined this with code from Child.tenMinuteUpdate to imitate Child behavior.
-     * Children will wander around the house every hour.
-     * I've also added a curfew system, so children go to bed at the (configurable) curfew time when at home.
+     * I've combined this with code from FarmHouse.performTenMinuteUpdate to handle NPC's pathfinding to be at night.
      */
     public class NPCPerformTenMinuteUpdatePatch
     {
-        public static bool Prefix(NPC __instance)
+        public static void Postfix(ref NPC __instance, int timeOfDay, GameLocation l)
         {
             if (!ModEntry.IsChildNPC(__instance) || !Game1.IsMasterGame)
-                return true;
-            
-            FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
+                return;
+
+            if (!(l is FarmHouse))
+                return;
+
+            FarmHouse farmHouse = l as FarmHouse;
             if (!farmHouse.characters.Contains(__instance))
-                return true;
+                return;
 
-            ModConfig config = ModEntry.Config;
-            //Send children to bed when inside home
-            if (config.DoChildrenHaveCurfew && Game1.timeOfDay == config.CurfewTime)
+            Point bedPoint = new Point((int)(__instance.DefaultPosition.X / 64), (int)(__instance.DefaultPosition.Y / 64));
+            if (__instance.getTileLocationPoint() == bedPoint)
+                return;
+
+            // If children are out of bed past a certain time, pathfind them past curfew (2200 for spouse)
+            int curfewTime = ModEntry.Config.CurfewTime;
+            if (Game1.timeOfDay >= curfewTime && (timeOfDay == curfewTime || (timeOfDay % 100 % 30 == 0 && __instance.controller == null)))
             {
-                __instance.IsWalkingInSquare = false;
-                __instance.Halt();
-                __instance.temporaryController = null;
-
-                //Child is at home, directly path to bed (DefaultPosition)
-                Point bedPoint = farmHouse.getChildBed(__instance.Gender);
-                __instance.controller = new PathFindController(__instance, farmHouse, bedPoint, 2);
-
-                if (__instance.controller.pathToEndPoint == null || !farmHouse.isTileOnMap(__instance.controller.pathToEndPoint.Last().X, __instance.controller.pathToEndPoint.Last().Y))
+                __instance.controller = null;
+                __instance.controller = new PathFindController(__instance, farmHouse, bedPoint, 0, new PathFindController.endBehavior(FarmHouse.spouseSleepEndFunction));
+                if (__instance.controller.pathToEndPoint == null || (!farmHouse.isTileOnMap(__instance.controller.pathToEndPoint.Last<Point>().X, __instance.controller.pathToEndPoint.Last<Point>().Y)))
                     __instance.controller = null;
             }
-            //Make children wander if they have nothing better to do
-            else if (__instance.controller == null && config.DoChildrenWander && Game1.timeOfDay % 100 == 0 && Game1.timeOfDay < config.CurfewTime)
-            {
-                __instance.IsWalkingInSquare = false;
-                __instance.Halt();
-
-                //If I'm going to prevent them from wandering into doorways, I need to do it here.
-                __instance.controller = new PathFindController(__instance, farmHouse, farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30), 2);
-                if (__instance.controller.pathToEndPoint == null || !farmHouse.isTileOnMap(__instance.controller.pathToEndPoint.Last().X, __instance.controller.pathToEndPoint.Last().Y))
-                    __instance.controller = null;
-            }
-
-            return true;
         }
     }
 }

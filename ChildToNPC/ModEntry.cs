@@ -12,31 +12,20 @@ using StardewValley.Buildings;
 
 namespace ChildToNPC
 {
-    /* To Do:
-     * Let NPCs pathfind around the FarmHouse?
-     * Let NPCs teleport to the spouse area, like spouses do?
-     * Make gifts/talking configurable (how many points to talk, how many gifts per week) 
-     * Multiple Dialogues in a day, like your spouse.
-     * Fix children walking through walls, if possible.
-     */
-
     /* ChildToNPC is a modding tool which converts a Child to an NPC 
      * for the purposes of creating Content Patcher mods.
      * 
      * ChildToNPC creates an NPC which is outwardly identical to your child
      * and removes your child from the farmhouse during the day, effectively replacing them.
      * 
-     * This version of Child To NPC is compatible with SMAPI 3.0/Stadew Valley 1.4.
+     * This version of Child To NPC was built with SMAPI 3.6/Stardew Valley 1.4.
+     * (It may be compatible with other versions, I haven't checked yet.)
      */
 
     /* This mod makes use of IContentPatcherAPI
-     * The Content Patcher API allows mods to make their own tokens
-     * to be used in the Content Patcher content packs.
+     * The Content Patcher API allows mods to make their own tokens for Content Patcher content packs.
      * In this case, my custom tokens are for the identities of the children being patched.
      * This allows modders to get access to child data.
-     * Because the tokens return null when that child isn't available,
-     * the patches will not be applied at all when the child isn't present,
-     * which prevents new NPCs from being wrongfully generated.
      */
 
     /* This mod makes use of Harmony and patches the following methods:
@@ -51,7 +40,11 @@ namespace ChildToNPC
      * FarmHouse.getChildren
      * (This method is always replaced)
      */
-    
+
+    /* TODO: Fix clipping into crib somehow?
+     * TODO: Make children more like spouse, with multiple dialogues and daily gifts and wandering around the house?
+     */
+
     class ModEntry : Mod
     {
         /* SMAPI provided */
@@ -64,19 +57,15 @@ namespace ChildToNPC
         public static int ageForCP;
 
         /* Data structures used by this mod */
-        /* A list of all children in the household */
-        public static List<Child> allChildren;
-        /* A list of children in the household which become NPCs */
-        public static Dictionary<string, Child> npcChildren;
         /* A dictionary of the NPC token info for modded children */
         public static List<ChildToken> npcTokens;
-        /* A dictionary of the NPC copies of modded children */
-        public static Dictionary<string, NPC> npcCopies;
+        /* A list of all children in the household */
+        public static List<Child> allChildren;
         /* A dictionary of child name, parent name strings for each child */
         public static Dictionary<string, string> parents;
+        /* A dictionary of the NPC copies of modded children */
+        public static Dictionary<string, NPC> npcCopies;
 
-        /* Used for loading child data */
-        public bool firstDay = true;
         /* Used for loading child CP patches */
         public bool updateNeeded = false;
 
@@ -87,7 +76,8 @@ namespace ChildToNPC
 
         /* Entry - entry method for this SMAPI mod
          * 
-         * Initializes variables and the config file, adds event handlers and harmony patches.
+         * Initializes variables, creates the config file, adds console commands by config,
+         * adds event handlers and harmony patches by config.
          */
         public override void Entry(IModHelper helper)
         {
@@ -95,11 +85,10 @@ namespace ChildToNPC
             monitor = Monitor;
             ModEntry.helper = helper;
 
-            allChildren = new List<Child>();
-            npcChildren = new Dictionary<string, Child>(MaxTokens);
             npcTokens = new List<ChildToken>(MaxTokens);
-            npcCopies = new Dictionary<string, NPC>(MaxTokens);
+            allChildren = new List<Child>();
             parents = new Dictionary<string, string>();
+            npcCopies = new Dictionary<string, NPC>(MaxTokens);
 
             // load the config file (method will create default config if doesn't exist)
             Config = helper.ReadConfig<ModConfig>();
@@ -126,43 +115,61 @@ namespace ChildToNPC
             helper.Events.GameLoop.OneSecondUpdateTicked += OnOneSecondUpdateTicked;
             
             // Harmony
-            HarmonyInstance harmony = HarmonyInstance.Create("Loe2run.ChildToNPC");
+            HarmonyInstance harmony = HarmonyInstance.Create(ModManifest.UniqueID);
+            // FarmHouse.getChildren patch (postfix)
             harmony.Patch(
                 original: AccessTools.Method(typeof(FarmHouse), nameof(FarmHouse.getChildren)),
                 postfix: new HarmonyMethod(typeof(Patches.FarmHouseGetChildrenPatch), nameof(Patches.FarmHouseGetChildrenPatch.Postfix))
             );
+            // NPC.performTenMinuteUpdate patch (postfix)
             harmony.Patch(
                 original: AccessTools.Method(typeof(NPC), nameof(NPC.performTenMinuteUpdate)),
-                prefix: new HarmonyMethod(typeof(Patches.NPCPerformTenMinuteUpdatePatch), nameof(Patches.NPCPerformTenMinuteUpdatePatch.Prefix))
+                postfix: new HarmonyMethod(typeof(Patches.NPCPerformTenMinuteUpdatePatch), nameof(Patches.NPCPerformTenMinuteUpdatePatch.Postfix))
             );
+            // NPC.arriveAtFarmHouse (postfix)
             harmony.Patch(
                 original: AccessTools.Method(typeof(NPC), nameof(NPC.arriveAtFarmHouse)),
                 postfix: new HarmonyMethod(typeof(Patches.NPCArriveAtFarmHousePatch), nameof(Patches.NPCArriveAtFarmHousePatch.Postfix))
             );
+            // TODO: Make decision whether to keep checkSchedule patch
+            /*
             harmony.Patch(
                 original: AccessTools.Method(typeof(NPC), nameof(NPC.checkSchedule)),
                 prefix: new HarmonyMethod(typeof(Patches.NPCCheckSchedulePatch), nameof(Patches.NPCCheckSchedulePatch.Prefix))
             );
+            */
+            // NPC.parseMasterSchedule patch (prefix)
             harmony.Patch(
                 original: AccessTools.Method(typeof(NPC), "parseMasterSchedule"),
                 prefix: new HarmonyMethod(typeof(Patches.NPCParseMasterSchedulePatch), nameof(Patches.NPCParseMasterSchedulePatch.Prefix))
             );
-            
+            // NPC.prepareToDisembarkOnNewSchedulePath patch (postfix)
             harmony.Patch(
                 original: AccessTools.Method(typeof(NPC), "prepareToDisembarkOnNewSchedulePath"),
                 postfix: new HarmonyMethod(typeof(Patches.NPCPrepareToDisembarkOnNewSchedulePathPatch), nameof(Patches.NPCPrepareToDisembarkOnNewSchedulePathPatch.Postfix))
             );
+            // PathFindController.handleWarps patch (prefix)
             harmony.Patch(
                 original: AccessTools.Method(typeof(PathFindController), nameof(PathFindController.handleWarps)),
                 prefix: new HarmonyMethod(typeof(Patches.PFCHandleWarpsPatch), nameof(Patches.PFCHandleWarpsPatch.Prefix))
             );
+            // NPC.shouldCollideWithBuildingLayer patch (postfix)
+            harmony.Patch(
+                original: AccessTools.Method(typeof(NPC), "shouldCollideWithBuildingLayer"),
+                postfix: new HarmonyMethod(typeof(Patches.NPCShouldCollideWithBuildingLayerPatch), nameof(Patches.NPCShouldCollideWithBuildingLayerPatch.Postfix))
+            );
         }
 
-        /* OnGameLaunched
-         * This is where I set up the IContentPatcherAPI tokens.
-         * Tokens are in the format of (Child Order)Child(Field)
-         * I.e. The first child's name is FirstChildName,
-         *      the third child's birthday is ThirdChildBirthday
+        /* OnGameLaunched - Handles mod integrations with Content Patcher.
+         * 
+         * This is where I set up the custom Content Patcher tokens for this mod.
+         * 
+         * Default Tokens: NumberTotalChildren, ConfigAge, ConfigCurfewTime
+         * - NumberTotalChildren gives the number of children the current player has.
+         * - The Config tokens give CP packs access to ChildToNPC's config.json info.
+         * Child Tokens: Child, ChildName, ChildBirthday, ChildGender, ChildParent, ChildDaysOld, ChildBed
+         * - These tokens have a copy created for each child: FirstChildName, SecondChildName, etc.
+         * - Details on what these values hold are in the IContentPatcherAPI internal ChildToken class.
          */
         private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
         {
@@ -175,11 +182,7 @@ namespace ChildToNPC
             api.RegisterToken(ModManifest, "NumberTotalChildren", TokenGetTotalChildren);
             // Register token for the config "AgeWhenKidsAreModified" value
             api.RegisterToken(ModManifest, "ConfigAge", TokenGetConfigAge);
-            // Register token for the config "DoChildrenWander" value
-            api.RegisterToken(ModManifest, "ConfigWander", TokenGetConfigWander);
-            // Register token for the config "DoChildrenHaveCurfew" value
-            api.RegisterToken(ModManifest, "ConfigCurfew", TokenGetConfigCurfew);
-            // Register token for the config "ConfigCurfewTime" value
+            // Register token for the config "CurfewTime" value
             api.RegisterToken(ModManifest, "ConfigCurfewTime", TokenGetConfigCurfewTime);
 
             // Register Content Patcher custom tokens for children
@@ -197,146 +200,49 @@ namespace ChildToNPC
                 api.RegisterToken(ModManifest, tokens[i] + "Gender", token.GetChildGender);
                 api.RegisterToken(ModManifest, tokens[i] + "Parent", token.GetChildParent);
                 api.RegisterToken(ModManifest, tokens[i] + "DaysOld", token.GetChildDaysOld);
-                /* I intend for the bed token to be customizable, but I'm leaving it as no-input right now */
                 api.RegisterToken(ModManifest, tokens[i] + "Bed", token.GetChildBed);
             }
         }
 
-        /* OnDayStarted
+        /* OnDayStarted - Updates data structures, replaces Child with NPC daily.
          * 
-         * Every morning, I check if there are children in the FarmHouse and remove them,
-         * and I add their NPC dopplegangers to the FarmHouse.
-         * This needs to be redone each day because NPC's are swapped back to child for saving.
+         * First, updates data structures to look for new children, check new child ages, etc.
+         * Then children with NPC copies have their copies added to the farmhouse.
+         * 
+         * NPCs are removed every day to avoid save data corruption, so this is repeated every day.
          */
         private void OnDayStarted(object sender, DayStartedEventArgs e)
         {
             // The farmhouse will be used for manipulating characters
             FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
-            
-            // Initialize data structures on the first day this save file has been loaded
-            if (firstDay)
+
+            // Update data structures from world data
+            UpdateDataStructures(farmHouse);
+
+            // If there are any children above age threshold, replace with NPC copy
+            if (npcCopies != null && npcCopies.Count > 0)
             {
-                InitializeDataStructures(farmHouse);
-                firstDay = false;
-            }
-            // Update the lists based on newly born children or newly aged children
-            else
-                UpdateDataStructures(farmHouse);
+                ReplaceChildNPC(farmHouse);
 
-            // Remove all children initially
-            List<NPC> tempRemovedChildren = new List<NPC>();
-            List<NPC> npcInHouse = farmHouse.characters.ToList();
-
-            // Remove all children, to maintain list order
-            foreach (NPC npc in npcInHouse)
-            {
-                if (npc is Child)
-                {
-                    farmHouse.getCharacters().Remove(npc);
-                    // Add children who need to be returned to list
-                    if (!npcChildren.ContainsValue(npc as Child))
-                        tempRemovedChildren.Add(npc);
-                }
-            }
-
-            // Replace children above the age threshold with an NPC copy
-            foreach (Child child in npcChildren.Values)
-            {
-                // Generate a new NPC copy if one hasn't been made yet
-                if (!npcCopies.ContainsKey(child.Name))
-                {
-                    // Create a new NPC copy
-                    NPC newChildCopy = CreateChildNPC(child, farmHouse);
-
-                    // Add child copy to the list of NPCs
-                    npcCopies.Add(child.Name, newChildCopy);
-                }
-
-                // Get friendship for child before removal
-                Friendship childFriendship = new Friendship(250);
-                if (Game1.player.friendshipData.ContainsKey(child.Name))
-                    childFriendship = Game1.player.friendshipData[child.Name];
-
-                // Add copy to the farmhouse
-                if (!npcCopies.TryGetValue(child.Name, out NPC childCopy))
-                    Monitor.Log("Failed to find " + child.Name + " copy from npcCopies.", LogLevel.Debug);
-
-                farmHouse.addCharacter(childCopy);
-
-                // Add the friendship data
-                if (!Game1.player.friendshipData.ContainsKey(childCopy.Name))
-                    Game1.player.friendshipData.Add(childCopy.Name, childFriendship);
-
-                // If children wander, have them start out of bed
-                if (Config.DoChildrenWander)
-                {
-                    Point openPoint = farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 60);
-                    if (!openPoint.Equals(Point.Zero))
-                        childCopy.setTilePosition(openPoint);
-                    else
-                        childCopy.Position = childCopy.DefaultPosition;
-                }
-                // Otherwise, they begin the day at the default position
-                else
-                    childCopy.Position = childCopy.DefaultPosition;
-            }
-
-            // Return the temporarily removed children to the end of the list, maintaining order
-            foreach (NPC npc in tempRemovedChildren)
-                farmHouse.addCharacter(npc);
-
-            // Tells the OnOneSecondUpdate method to try and load CP data
-            updateNeeded = true;
-        }
-
-        /* InitializeDataStructures
-         * Initializes the values for data structures used by the mod,
-         * run on the first day after the save is loaded.
-         * The data structures initialized for this save: allChildren, parents, npcChildren, tokens in npcTokens.
-         */
-        private void InitializeDataStructures(FarmHouse farmHouse)
-        {
-            // Add children to the general child list
-            foreach (Child child in farmHouse.getChildren())
-                allChildren.Add(child);
-
-            // Add children to the tracking dictionaries
-            foreach (Child child in allChildren)
-            {
-                // Add parent information for each child, from config or default
-                if (Config.ChildParentPairs.TryGetValue(child.Name, out string parentName))
-                    parents.Add(child.Name, parentName);
-                else if (Game1.player.spouse != null && Game1.player.spouse.Length > 0)
-                    parents.Add(child.Name, Game1.player.spouse);
-                else
-                    parents.Add(child.Name, "Abigail");
-
-                // Add children to the npc list if they meet the age limit
-                /* I think children will be added to list in birth order? */
-                if (child.daysOld >= ageForCP && npcChildren.Count < MaxTokens)
-                    npcChildren.Add(child.Name, child);
-            }
-
-            // Initialize token values for children
-            for (int i = 0; i < MaxTokens; i++)
-            {
-                npcTokens[i].InitializeChildToken();
+                // Tells the OnOneSecondUpdate method to try and load CP data
+                updateNeeded = true;
             }
         }
 
         /* UpdateDataStructures
-         * Updates the values for data structures used by the mod,
-         * run on every day after the save is loaded except the first.
-         * The data structures updated for this save: allChildren, parents, npcChildren, tokens in npcTokens.
+         * Updates the values for data structures used by the mod, run every day after the save is loaded.
+         * The data structures updated for this save: allChildren, parents, tnpcCopies, tokens in npcTokens.
          */
         private void UpdateDataStructures(FarmHouse farmHouse)
         {
-            // This list will include all children, NPCs not yet added
-            foreach (Child child in farmHouse.getChildren())
+            // Add children to the general child list
+            List<NPC> npcInHouse = farmHouse.getCharacters().ToList();
+            foreach (NPC npc in npcInHouse)
             {
-                // Add new children to the children list
-                if (!allChildren.Contains(child))
+                if ((npc is Child) && (!allChildren.Contains(npc as Child)))
                 {
+                    // Add to the list of all children
+                    Child child = npc as Child;
                     allChildren.Add(child);
 
                     // Child is new, so add parent information, from config or default
@@ -347,47 +253,157 @@ namespace ChildToNPC
                     else
                         parents.Add(child.Name, "Abigail");
                 }
+            }
 
-                // Add children to the npc list if they meet the age limit
-                if (npcChildren.Count < MaxTokens && !npcChildren.ContainsValue(child) && child.daysOld >= ageForCP)
-                    npcChildren.Add(child.Name, child);
-
-                /* TODO: Update only when a child becomes toddler, not every day */
+            // Update token values for children
+            for (int i = 0; i < MaxTokens; i++)
+            {
                 // Update token values for children
-                for (int i = 0; i < MaxTokens; i++)
-                {
-                    // Re-initialize token values for children
-                    if (!npcTokens[i].IsInitialized())
-                        npcTokens[i].InitializeChildToken();
-                    // Update token values for children
+                if (npcTokens[i].IsInitialized())
                     npcTokens[i].UpdateChildToken();
+            }
+
+            // Generate new NPC copies and manage children above age limit
+            foreach (Child child in allChildren)
+            {
+                // Check for new children above the age limit, if there's space for them
+                if ((npcCopies.Count < MaxTokens) && (child.daysOld.Value >= ageForCP) && (!npcCopies.ContainsKey(child.Name)))
+                {
+                    // First NPC added to the list is 0, second is 1, etc.
+                    int npcIndex = npcCopies.Count;
+
+                    // Initialize the token values for this child
+                    npcTokens[npcIndex].InitializeChildToken();
+
+                    // Generate their NPC copy and add to the list of NPCs
+                    npcCopies.Add(child.Name, CreateChildNPC(child, farmHouse, npcIndex));
+                }
+
+                // Children who are replaced won't be updated by the game, update for new day manually
+                if (npcCopies.ContainsKey(child.Name))
+                {
+                    // This adds the child to the farmhouse, removal must happen after this
+                    child.dayUpdate(Game1.dayOfMonth);
                 }
             }
+        }
+
+        /* ReplaceChildNPC
+         * Removes children over the age limit and replaces with their NPC copy.
+         * Assumes that there is at least one child to be replaced.
+         * 
+         * Temporarily remove all children in order to maintain order for FarmHouse.characters list,
+         * then adds normal children to the house again before finishing.
+         * Copies child's friendship information to their NPC copy when replacing in farmhouse.
+         */
+        private void ReplaceChildNPC(FarmHouse farmHouse)
+        {
+            // To keep track of children under the age limit and add again at the end
+            List<Child> tempRemovedChildren = new List<Child>();
+
+            // Remove all children
+            foreach (Child child in allChildren)
+            {
+                // Children without NPC are just temporarily removed
+                if (!npcCopies.TryGetValue(child.Name, out NPC childCopy))
+                {
+                    // Save to be added again at the end
+                    tempRemovedChildren.Add(child);
+
+                    // Remove child from farmhouse
+                    if (!farmHouse.getCharacters().Remove((NPC)child))
+                    {
+                        monitor.Log("Child " + child.Name + " wasn't on farmHouse.getCharacters() collection.", LogLevel.Error);
+                        // TODO: Not sure if this is appropriate error handling?
+                        tempRemovedChildren.Remove(child);
+                    }
+                }
+                // Replace children with their NPC copy, including friendship info
+                else
+                {
+                    // Save friendship from child before removal
+                    Friendship childFriendship = new Friendship(250);
+
+                    // If doesn't contain key, then player hasn't spoken to child before
+                    if (Game1.player.friendshipData.ContainsKey(child.Name))
+                    {
+                        childFriendship = Game1.player.friendshipData[child.Name];
+                        Game1.player.friendshipData.Remove(child.Name);
+                    }
+
+                    // Remove original child from farmhouse
+                    if (!farmHouse.getCharacters().Remove((NPC)child))
+                    {
+                        monitor.Log("Child \"" + child.Name + "\" wasn't in FarmHouse, skipping NPC replacement.", LogLevel.Error);
+                        // TODO: Not sure if it's appropriate error handling not to re-add friendship and child?
+                    }
+                    else
+                    {
+                        // Add copy to the farmhouse
+                        farmHouse.addCharacter(childCopy);
+
+                        // Add the friendship data
+                        if (!Game1.player.friendshipData.ContainsKey(childCopy.Name))
+                        {
+                            Game1.player.friendshipData.Add(childCopy.Name, childFriendship);
+                        }
+                        // If copy friendship already in data, then corruption has occurred
+                        else
+                        {
+                            monitor.Log("NPC Friendship found in data, removing & re-adding friendship for " + childCopy.Name, LogLevel.Error);
+                            Game1.player.friendshipData.Remove(childCopy.Name);
+                            Game1.player.friendshipData.Add(childCopy.Name, childFriendship);
+                        }
+
+                        // Children begin the day at their default position
+                        if (Config.DoChildrenStartInBed)
+                            childCopy.Position = childCopy.DefaultPosition;
+                        else
+                        {
+                            // Children begin the day at a random point in the house
+                            Point randomPoint = farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 60);
+                            if (!randomPoint.Equals(Point.Zero))
+                            {
+                                Vector2 randomPosition = new Vector2(randomPoint.X * 64f, randomPoint.Y * 64f);
+                                childCopy.Position = randomPosition;
+                            }
+                            else
+                                childCopy.Position = childCopy.DefaultPosition;
+                        }
+                    }
+                }
+            }
+
+            // Return the temporarily removed children to the end of the list, maintaining order
+            foreach (Child child in tempRemovedChildren)
+                farmHouse.addCharacter(child);
         }
 
         /* CreateChildNPC
          * Creates a new NPC for the given Child.
          * The NPC is based purely on the Child's appearance and data, without referencing any CP assets at this point.
          */
-        private NPC CreateChildNPC(Child child, FarmHouse farmHouse)
+        private NPC CreateChildNPC(Child child, FarmHouse farmHouse, int npcIndex)
         {
             // First NPC added to the list is 0, second is 1, etc.
-            int npcIndex = npcCopies.Count;
+            string name = tokens[npcIndex];
 
             /* Based on StardewValley code from Game1 loadForNewGame */
             // Default position is the child's bed point, either from token or game default
-            Point bedPoint = npcTokens[npcIndex].GetBedPoint(child);
+            Point bedPoint = GetBedPoint(npcIndex + 1, allChildren);
+            // Try the game's built-in function if mine fails?
             if (bedPoint.Equals(Point.Zero))
                 bedPoint = farmHouse.getChildBed(child.Gender);
+
             Vector2 location = new Vector2(bedPoint.X * 64f, bedPoint.Y * 64f);
 
             /* new NPC(new AnimatedSprite("Characters\\George", 0, 16, 32), new Vector2(1024f, 1408f), "JoshHouse",
              * 0, "George", false, (Dictionary<int, int[]>) null, Game1.content.Load<Texture2D>("Portraits\\George")); */
-            /* not datable, schedule null, portrait null */
-            NPC newChildCopy = new NPC(child.Sprite, location, "FarmHouse", 2, tokens[npcIndex], false, null, null)
+            // not datable, schedule null, portrait null
+            NPC newChildCopy = new NPC(child.Sprite, location, "FarmHouse", 2, name, false, null, null)
             {
                 DefaultMap = Game1.player.homeLocation.Value,
-                // DefaultPosition = location,
+                DefaultPosition = location,
                 Breather = false, // This should be true for adult-sized sprites, but false for toddler sized sprites
                 HideShadow = false,
                 displayName = child.Name,
@@ -395,6 +411,111 @@ namespace ChildToNPC
             };
 
             return newChildCopy;
+        }
+
+        /* OnSaving
+         * When the game saves overnight, I add the child back to the FarmHouse.characters list
+         * so that if the mod is uninstalled, the child is returned properly.
+         * Additionally, I remove the child copy NPC for the same reason.
+         * If the mod is uninstalled, the new NPC shouldn't be in the save data.
+         * 
+         * I save the Friendship data for the generated NPC here.
+         * Otherwise, exiting the game would reset gift data.
+         * 
+         * If the NPC was out of the house at the time the game was saved, the farmHouse.characters list is no longer ordered.
+         * Because the npcChildren list is ordered, doing npcChildren in order and then additional children will maintain order.
+         *
+         * I think it's possible for NPC children to be out of the house (not in the FarmHouse map) before this method runs?
+         */
+        private void OnSaving(object sender, SavingEventArgs e)
+        {
+            // Children are always in the house, NPCs may be somewhere else?
+            FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
+
+            // Save friendship information for custom NPC's
+            Dictionary<string, Friendship> tempFriendships = new Dictionary<string, Friendship>();
+            foreach (KeyValuePair<string, NPC> pair in npcCopies)
+            {
+                if (Game1.player.friendshipData.TryGetValue(pair.Value.Name, out Friendship npcFriendship))
+                {
+                    // Save this friendship under the Child's name value
+                    tempFriendships.Add(pair.Key, npcFriendship);
+                    
+                    // Remove from the save data
+                    Game1.player.friendshipData.Remove(pair.Value.Name);
+                }
+            }
+
+            // Remove custom NPC's from the farmhouse
+            // TODO: Make this more efficient
+            // Check all locations for NPC
+            foreach (GameLocation location in Game1.locations)
+            {
+                // Check based on a potential NPC name, intentionally broad criteria
+                foreach (string name in tokens)
+                {
+                    try
+                    {
+                        NPC customNPC = location.getCharacterFromName(name);
+                        if (customNPC != null)
+                            location.getCharacters().Remove(customNPC);
+                    }
+                    catch (Exception ex)
+                    {
+                        monitor.Log("Exception when removing custom NPCs: " + ex.Message, LogLevel.Error);
+                    }
+                }
+            }
+            // Check indoor locations for NPC (?)
+            foreach (BuildableGameLocation location in Game1.locations.OfType<BuildableGameLocation>())
+            {
+                foreach (Building building in location.buildings)
+                {
+                    if (building.indoors.Value != null)
+                    {
+                        // Check based on a potential NPC name, intentionally broad criteria
+                        foreach (string name in tokens)
+                        {
+                            try
+                            {
+                                NPC customNPC = building.indoors.Value.getCharacterFromName(name);
+                                if (customNPC != null)
+                                    building.indoors.Value.getCharacters().Remove(customNPC);
+                            }
+                            catch (Exception ex)
+                            {
+                                monitor.Log("Exception when removing custom NPCs: " + ex.Message, LogLevel.Error);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Temporarily remove all children from farmhouse
+            foreach (Child child in allChildren)
+            {
+                if (farmHouse.getCharacters().Contains(child))
+                    farmHouse.getCharacters().Remove(child);
+            }
+
+            // Add all children to the farmhouse in order, update friendship information if shared with NPC
+            foreach (Child child in allChildren)
+            {
+                farmHouse.addCharacter(child);
+
+                // Swap friendship information
+                if (tempFriendships.TryGetValue(child.Name, out Friendship npcFriendship))
+                {
+                    if (!Game1.player.friendshipData.ContainsKey(child.Name))
+                        Game1.player.friendshipData.Add(child.Name, npcFriendship);
+                    else
+                    {
+                        monitor.Log("Child friendship already in data, removing & re-adding friendship for \"" + child.Name + "\"", LogLevel.Error);
+                        Game1.player.friendshipData.Remove(child.Name);
+                        Game1.player.friendshipData.Add(child.Name, npcFriendship);
+                    }
+                }
+            }
         }
 
         /* OnOneSecondUpdateTicked
@@ -422,10 +543,10 @@ namespace ChildToNPC
                 }
                 catch (Exception ex)
                 {
-                    monitor.Log("Failed to load " + copy.Name + " sprite: " + ex.Message);
+                    monitor.Log("Failed to load Characters\\" + copy.Name + ": " + ex.Message, LogLevel.Trace);
                 }
 
-                //Try to load DefaultPosition from dispositions
+                // Try to load DefaultPosition from dispositions
                 try
                 {
                     Dictionary<string, string> dispositions = Game1.content.Load<Dictionary<string, string>>("Data\\NPCDispositions");
@@ -435,99 +556,19 @@ namespace ChildToNPC
                         Vector2 position = new Vector2(int.Parse(defaultPosition[1]) * 64f, int.Parse(defaultPosition[2]) * 64f);
 
                         copy.DefaultPosition = position;
+
+                        // Update the default position for start of day
+                        if (Config.DoChildrenStartInBed)
+                            copy.Position = copy.DefaultPosition;
                     }
-                }
-                catch (Exception) { }
-            }
-
-            updateNeeded = false;
-        }
-
-        /* OnSaving
-         * When the game saves overnight, I add the child back to the FarmHouse.characters list
-         * so that if the mod is uninstalled, the child is returned properly.
-         * Additionally, I remove the child copy NPC for the same reason.
-         * If the mod is uninstalled, the new NPC shouldn't be in the save data.
-         * 
-         * I save the Friendship data for the generated NPC here.
-         * Otherwise, exiting the game would reset gift data.
-         */
-        private void OnSaving(object sender, SavingEventArgs e)
-        {
-            // For adding children to the house
-            FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
-
-            // Remove all children in order
-            List<NPC> tempRemovedChildren = new List<NPC>();
-            List<NPC> npcInHouse = farmHouse.characters.ToList();
-
-            // Remove all children, to maintain list order
-            foreach (NPC npc in npcInHouse)
-            {
-                if (npc is Child)
-                {
-                    farmHouse.getCharacters().Remove(npc);
-                    if (!npcChildren.ContainsValue(npc as Child))
-                        tempRemovedChildren.Add(npc);
-                }
-            }
-
-            // Remove each childCopy from the world and replace with original child
-            foreach (Child child in npcChildren.Values)
-            {
-                // An error for one NPC shouldn't prevent the others from being deleted
-                try
-                {
-                    // Remove childcopy from save file first
-                    if (npcCopies.TryGetValue(child.Name, out NPC childCopy))
-                    {
-                        // TODO: Utility.getGameLocationOfCharacter(NPC) ?
-                        // Check all locations for NPC
-                        foreach (GameLocation location in Game1.locations)
-                        {
-                            if (location.characters.Contains(childCopy))
-                                location.getCharacters().Remove(childCopy);
-                        }
-                        // Check indoor locations for NPC (?)
-                        foreach (BuildableGameLocation location in Game1.locations.OfType<BuildableGameLocation>())
-                        {
-                            foreach (Building building in location.buildings)
-                            {
-                                if (building.indoors.Value != null && building.indoors.Value.characters.Contains(childCopy))
-                                    building.indoors.Value.getCharacters().Remove(childCopy);
-                            }
-                        }
-                    }
-                    // We don't want failure to remove NPC to prevent Child from being added to save data
-                    else
-                    {
-                        Monitor.Log("OnSaving failed, NPC Child doesn't have a child copy: " + child.Name, LogLevel.Debug);
-                    }
-
-                    // Get friendship for NPC before removal
-                    Friendship npcFriendship = new Friendship(250);
-                    if (Game1.player.friendshipData.ContainsKey(childCopy.Name))
-                        npcFriendship = Game1.player.friendshipData[childCopy.Name];
-
-                    // Add the original child to the house again
-                    if (!farmHouse.getCharacters().Contains(child))
-                        farmHouse.addCharacter(child);
-                    else
-                        Monitor.Log("OnSaving failed, NPC Child already in farmhouse: " + child.Name, LogLevel.Debug);
-
-                    // Add friendship for child
-                    if (!Game1.player.friendshipData.ContainsKey(child.Name))
-                        Game1.player.friendshipData.Add(child.Name, npcFriendship);
                 }
                 catch (Exception ex)
                 {
-                    Monitor.Log("OnSaving failed for child " + child.Name + ": " + ex.Message);
+                    monitor.Log("Failed to load Data\\NPCDispositions for " + copy.Name + ": " + ex.Message, LogLevel.Trace);
                 }
             }
 
-            // Return the other children to the house, adding at end of the list to maintain order
-            foreach (NPC npc in tempRemovedChildren)
-                farmHouse.addCharacter(npc);
+            updateNeeded = false;
         }
 
         /* OnReturnedToTitle
@@ -544,10 +585,8 @@ namespace ChildToNPC
 
             // Reset save game variables
             allChildren = new List<Child>();
-            npcChildren = new Dictionary<string, Child>(MaxTokens);
             npcCopies = new Dictionary<string, NPC>(MaxTokens);
             parents = new Dictionary<string, string>();
-            firstDay = true;
             updateNeeded = false;
         }
 
@@ -567,22 +606,6 @@ namespace ChildToNPC
             return new[] { Config.AgeWhenKidsAreModified.ToString() };
         }
 
-        /* TokenGetConfigWander: used for the ConfigWander CP token
-         * Returns the "DoChildrenWander" value from the ChildToNPC config.json
-         */
-        private IEnumerable<string> TokenGetConfigWander()
-        {
-            return new[] { Config.DoChildrenWander ? "true" : "false" };
-        }
-
-        /* TokenGetConfigCurfew: used for the ConfigCurfew CP token
-         * Returns the "DoChildrenHaveCurfew" value from the ChildToNPC config.json
-         */
-        private IEnumerable<string> TokenGetConfigCurfew()
-        {
-            return new[] { Config.DoChildrenHaveCurfew ? "true" : "false" };
-        }
-
         /* TokenGetConfigCurfewTime: used for the ConfigCurfewTime CP token
          * Returns the "CurfewTime" value from the ChildToNPC config.json
          */
@@ -595,31 +618,13 @@ namespace ChildToNPC
          * I only want to trigger Harmony patches when I'm applying the method to an NPC copy,
          * so this method verifies that the NPC in question is on my list.
          */
-        public static bool IsChildNPC(Character c)
-        {
-            return npcCopies != null && npcCopies.ContainsValue(c as NPC);
-        }
-
         public static bool IsChildNPC(NPC npc)
         {
             return npcCopies != null && npcCopies.ContainsValue(npc);
         }
 
-        /* GetFarmerParentId
-         * Returns the parentId from the child given their NPC/Character copy
-         */
-        public static long GetFarmerParentId(Character c)
-        {
-            foreach(Child child in allChildren)
-            {
-                if (child.Name.Equals(c.Name))
-                    return child.idOfParent.Value;
-            }
-            return 0L;
-        }
-
         /* GetChild
-         * Returns the child by birth order from the npcChildren list
+         * Returns the child by birth order from the allChildren list
          */ 
         public static Child GetChild(int birthNumber)
         {
@@ -627,67 +632,71 @@ namespace ChildToNPC
                 return allChildren[birthNumber - 1];
             return null;
         }
+
+        /* GetBedPoint
+         * Returns Bed information in the form of a Point (instead of string).
+         * ChildNumber is in range [1, 2, 3, 4].
+         */
+        public Point GetBedPoint(int ChildNumber, List<Child> children)
+        {
+            if (children == null || children.Count < ChildNumber)
+                return Point.Zero;
+
+            // Get a count of who is sleeping in beds, who is in crib
+            int toddler = 0;
+            foreach (Child c in children)
+            {
+                if (c.Age >= 3)
+                    toddler++;
+            }
+
+            /* Overview:
+             * First child gets first bed. Second child gets second bed.
+             * Once third is born, tries to share with first child.
+             * (Siblings try to share with same gender siblings first.)
+             * If they can't share, tries to share with second child.
+             * If they can't share, third shares with first child anyway.
+             * Once fourth is born, fills in the last open space.
+             */
+            Point bed1 = new Point(23, 5); // Right side of bed 1 (left bed)
+            Point share1 = new Point(22, 5); // Left side of bed 1 (left bed)
+            Point bed2 = new Point(27, 5); // Right side of bed 2 (right bed)
+            Point share2 = new Point(26, 5); // Left side of bed 2 (right bed)
+
+            if (ChildNumber == 1)
+                return bed1; // Child1 always gets right side of bed 1
+
+            if (toddler == 2)
+                return bed2; // Child1 gets bed 1, Child2 gets bed 2
+
+            // More than 2 kids and first two share gender
+            if (children[0].Gender == children[1].Gender)
+            {
+                if (ChildNumber == 2)
+                    return share1; // Child1 and Child2 share bed 1
+                else if (ChildNumber == 3)
+                    return bed2; // Child3 and Child4 share bed 2
+                else
+                    return share2;
+            }
+            // More than 2 kids and first two don't share gender
+            if (ChildNumber == 2)
+                return bed2; // Child1 gets bed 1, Child2 gets bed 2
+
+            // More than 2 kids, Child1 and Child2 can't share, Child2 and Child3 can share
+            if (children[1].Gender == children[2].Gender)
+            {
+                if (ChildNumber == 3)
+                    return share2; // Child2 and Child3 share bed 2
+                else
+                    return share1; // Child1 and Child4 share bed 1
+            }
+
+            // More than 2 kids, Child1 and Child2 can't share, Child2 and Child3 can't share
+            if (ChildNumber == 3)
+                return share1; // Child1 and Child3 share bed 1
+
+            return share2; // Child2 and Child4 share bed 2
+        }
     }
 }
-
-// (These are some notes for myself about pathfinding.)
-
-/* How does pathfinding work?
- * --------------------------
- * At the very top, in the Game1 class, the game executes Game1.performTenMinuteClockUpdate()
- * Inside of this method, the game executes an important piece of code.
- * -> foreach (GameLocation location in (IEnumerable<GameLocation>) Game1.locations)
- * -> {
- * ->   location.performTenMinuteUpdate(Game1.timeOfDay);
- * ->   if (location is Farm)
- * ->     ((BuildableGameLocation) location).timeUpdate(10);
- * -> }
- * 
- * Important methods now:
- * GameLocation.performTenMinuteUpdate(Game1.timeOfDay)
- * BuildableGameLocation.timeUpdate(10);
- * 
- * GameLocation.performTenMinuteUpdate(Game1.timeOfDay)
- * ----------------------------------------------------
- * 
- * Inside of GameLocation.performTenMinuteUpdate(Game1.timeOfDay), we see this.
- * -> for (int index = 0; index < this.characters.Count; ++index)
- * -> {
- * ->   if (!this.characters[index].IsInvisible)
- * ->   {
- * ->     this.characters[index].checkSchedule(timeOfDay);
- * ->     this.characters[index].performTenMinuteUpdate(timeOfDay, this);
- * ->   }
- * -> }
- * 
- * So the GameLocation that a character is in finds that character, 
- * checks their schedule, then asks them to performTenMinuteUpdate.
- * 
- * NPC.checkSchedule(int timeOfDay)
- * ----------------------------
- * This method tries to get the schedule for this timeOfDay
- * and sets the PathfindController to the destination.
- * (It also handles what to do when a character is "running late")
- * 
- * An important method inside of checkSchedule is NPC.prepareToDisembarkOnNewSchedulePath();
- * This sets the temporary controller to escort the NPC out of the FarmHouse
- * and sets the controller and schedule to null if the character is on the Farm.
- * 
- * NPC.performTenMinuteUpdate(int timeOfDay, GameLocation l)
- * -------------------------------------
- * (I'm not super confident here, but it looks like NPC.performTenMinuteUpdate() only generates SayHi dialogue?)
- * 
- * BuildableGameLocation.timeUpdate(10)
- * ------------------------------------
- * 
- * After the GameLocations perform their tenMinuteUpdate, the Farm executes timeUpdate(10).
- * The Farm goes through every AnimalHouse is has, and executes for each animal
- * FarmAnimal.updatePerTenMinutes(Game1.timeOfDay, ...building.indoors);
- * 
- * ----------------------------------------------------------------------------------------------------------------
- * Another factor in what's going on is that when the day starts,
- * the game executes NPC.dayUpdate(int dayOfMonth) for each character.
- * 
- * In this method, the game runs NPC.getSchedule(int dayOfMonth) to set the NPC.Schedule/NPC.schedule.
- * NPC.getSchedule(int dayOfMonth)
- */

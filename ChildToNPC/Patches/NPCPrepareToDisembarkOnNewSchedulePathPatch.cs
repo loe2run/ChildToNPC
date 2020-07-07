@@ -14,16 +14,15 @@ namespace ChildToNPC.Patches
      */
     class NPCPrepareToDisembarkOnNewSchedulePathPatch
     {
-        public static void Postfix(NPC __instance)
+        public static void Postfix(ref NPC __instance)
         {
             if (!ModEntry.IsChildNPC(__instance))
                 return;
             
             /* Code from NPC.prepareToDisembarkOnNewSchedulePath */
-
             if(__instance.temporaryController == null && Utility.getGameLocationOfCharacter(__instance) is FarmHouse)
             {
-                __instance.temporaryController = new PathFindController(__instance, __instance.getHome(), new Point(__instance.getHome().warps[0].X, __instance.getHome().warps[0].Y), 2, true)
+                __instance.temporaryController = new PathFindController(__instance, __instance.getHome(), new Point(__instance.getHome().warps[0].X, __instance.getHome().warps[0].Y), 2, true, true)
                 {
                     NPCSchedule = true
                 };

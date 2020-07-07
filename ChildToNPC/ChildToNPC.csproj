@@ -57,6 +57,7 @@
     <Compile Include="Patches\NPCCheckSchedulePatch.cs" />
     <Compile Include="Patches\NPCParseMasterSchedulePatch.cs" />
     <Compile Include="Patches\NPCPrepareToDisembarkOnNewSchedulePathPatch.cs" />
+    <Compile Include="Patches\NPCShouldCollideWithBuildingLayerPatch.cs" />
     <Compile Include="Patches\PFCHandleWarpsPatch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

@@ -12,21 +12,21 @@ namespace ChildToNPC.Patches
     {
         public static void Postfix(ref List<Child> __result)
         {
-            List<Child> resultList = __result;
             List<Child> allChildList = ModEntry.allChildren;
+            List<Child> resultList = __result;
 
             // Check if allChildren has been initialized yet
             if (allChildList != null && allChildList.Count > 0)
             {
+                // Start with the allChildren list instead
                 resultList = allChildList;
 
                 // Verify that allChildren contains all children
-                foreach (Child child in resultList)
+                foreach (Child child in __result)
                 {
                     if (!allChildList.Contains(child))
                     {
-                        if (ModEntry.monitor != null)
-                            ModEntry.monitor.Log("The allChildren list is missing a child: " + child.Name, StardewModdingAPI.LogLevel.Debug);
+                        ModEntry.monitor.Log("The allChildren list is missing a child: " + child.Name);
                         resultList.Add(child);
                     }
                 }

@@ -42,14 +42,18 @@ namespace ChildToNPC
         private string DaysOld;
         private string Bed;
 
+        /* Constructor - sets the ChildNumber, isn't initialized yet */ 
         public ChildToken(int childNumberIn)
         {
             ChildNumber = childNumberIn;
             Initialized = false;
         }
 
-        /*
+        /* InitializeChildToken - initialize token fields from game data
          * 
+         * Attempts to initialize the token's data from child information.
+         * Returns false on failure to initialize, Initialized bool remains false.
+         * Otherwise, initializes all token fields and Initialized bool becomes true.
          */
         public bool InitializeChildToken()
         {
@@ -61,8 +65,8 @@ namespace ChildToNPC
             // Get the name of the child (npc name)
             NameNPC = ModEntry.tokens[ChildNumber-1];
 
-            // Get the name of the child (display name)
-            Name = child.displayName;
+            // Get the name of the child (display name) without added white space
+            Name = child.displayName.Trim();
 
             // Get the gender of the child
             Gender = (child.Gender == 0) ? "male" : "female";
@@ -80,7 +84,7 @@ namespace ChildToNPC
             SDate birthday = new SDate(1, "spring");
             try
             {
-                birthday = today.AddDays(-child.daysOld);
+                birthday = today.AddDays(-child.daysOld.Value);
             }
             catch (ArithmeticException) { }
             Birthday = birthday.Season + " " + birthday.Day;
@@ -96,34 +100,40 @@ namespace ChildToNPC
             return true;
         }
 
-        /*
-         * 
-         */
+        /* Returns true if token was successfully initialized */
         public bool IsInitialized()
         {
             return Initialized;
         }
 
-        /*
+        /* UpdateChildToken - updates token fields from game data
          * 
-         */ 
+         * Attempts to update the token's data from child information.
+         * Returns false on failure to update.
+         * Otherwise, updates changeable token fields (age, bed spot).
+         */
         public void UpdateChildToken()
         {
             // Update the token only if the child information is available
             Child child = ModEntry.GetChild(ChildNumber);
+            if (child == null)
+                return;
 
-            if (child != null)
-            {
-                // Update the number of days old
-                DaysOld = child.daysOld.Value.ToString();
+            // Update the number of days old
+            string prevDaysOld = DaysOld;
+            DaysOld = child.daysOld.Value.ToString();
 
-                // Update the bed position based on new sibling
-                Bed = GetBed(child);
-            }
+            if (prevDaysOld.Equals(DaysOld))
+                ModEntry.monitor.Log("UpdateChildToken was called before any updates occurred.", LogLevel.Trace);
+
+            // Update the bed position based on new siblings
+            Bed = GetBed(child);
         }
 
-        /*
+        /* ClearToken - deletes cached token fields
          * 
+         * Resets all token fields to null in preparation to re-initialize with a new save file.
+         * Also sets the Initialized bool to false, token is no longer initialized.
          */
         public void ClearToken()
         {
@@ -196,7 +206,7 @@ namespace ChildToNPC
                 return bed2; // Child1 gets bed 1, Child2 gets bed 2
 
             // More than 2 kids, Child1 and Child2 can't share, Child2 and Child3 can share
-            if (ModEntry.allChildren[1].Gender == ModEntry.allChildren[2].Gender)
+            if (children[1].Gender == children[2].Gender)
             {
                 if (ChildNumber == 3)
                     return share2; // Child2 and Child3 share bed 2

@@ -1,8 +1,10 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
 using StardewValley;
+using StardewValley.Characters;
 using StardewValley.Locations;
 using StardewValley.Network;
-using System;
 
 namespace ChildToNPC.Patches
 {
@@ -12,13 +14,28 @@ namespace ChildToNPC.Patches
      */
     class PFCHandleWarpsPatch
     {
-        public static bool Prefix(Rectangle position, PathFindController __instance, Character ___character)
+        public static bool Prefix(Rectangle position, ref PathFindController __instance)
         {
-            if (!ModEntry.IsChildNPC(___character))
+            NPC npc;
+            try
+            {
+                var character = ModEntry.helper.Reflection.GetField<Character>(__instance, "character", true);
+                Character c = character.GetValue();
+                if (!(c is NPC))
+                    return true;
+                npc = c as NPC;
+            }
+            catch (Exception ex)
+            {
+                ModEntry.monitor.Log("Failed to load PathFindController character from reflection.");
+                ModEntry.monitor.Log("Exception ex: " + ex.Message);
+                return true;
+            }
+
+            if (!ModEntry.IsChildNPC(npc))
                 return true;
 
             /* Code from PathFindController.handleWarps */
-
             Warp warp = __instance.location.isCollidingWithWarpOrDoor(position);
             if (warp == null)
                 return false;
@@ -26,28 +43,27 @@ namespace ChildToNPC.Patches
             if (warp.TargetName == "Trailer" && Game1.MasterPlayer.mailReceived.Contains("pamHouseUpgrade"))
                 warp = new Warp(warp.X, warp.Y, "Trailer_Big", 13, 24, false);
 
-            //This is normally only for married NPCs
-            if (___character is NPC && (___character as NPC).followSchedule)
+            // This is normally only for married NPCs
+            if (npc.followSchedule)
             {
-                NPC character = ___character as NPC;
                 if (__instance.location is FarmHouse)
                     warp = new Warp(warp.X, warp.Y, "BusStop", 0, 23, false);
                 if (__instance.location is BusStop && warp.X <= 0)
-                    warp = new Warp(warp.X, warp.Y, character.getHome().Name, (character.getHome() as FarmHouse).getEntryLocation().X, (character.getHome() as FarmHouse).getEntryLocation().Y, false);
-                if (character.temporaryController != null && character.controller != null)
-                    character.controller.location = Game1.getLocationFromName(warp.TargetName);
+                    warp = new Warp(warp.X, warp.Y, npc.getHome().Name, (npc.getHome() as FarmHouse).getEntryLocation().X, (npc.getHome() as FarmHouse).getEntryLocation().Y, false);
+                if (npc.temporaryController != null && npc.controller != null)
+                    npc.controller.location = Game1.getLocationFromName(warp.TargetName);
             }
 
             __instance.location = Game1.getLocationFromName(warp.TargetName);
-            //This is normally only for married NPCs
-            if (___character is NPC && (warp.TargetName == "FarmHouse" || warp.TargetName == "Cabin"))
+            // This is normally only for married NPCs
+            if (warp.TargetName == "FarmHouse" || warp.TargetName == "Cabin")
             {
-                __instance.location = Utility.getHomeOfFarmer(Game1.getFarmer(ModEntry.GetFarmerParentId(___character)));
+                __instance.location = Utility.getHomeOfFarmer(Game1.getFarmer(GetFarmerParentId(npc)));
                 warp = new Warp(warp.X, warp.Y, __instance.location.Name, (__instance.location as FarmHouse).getEntryLocation().X, (__instance.location as FarmHouse).getEntryLocation().Y, false);
-                if ((___character as NPC).temporaryController != null && (___character as NPC).controller != null)
-                    (___character as NPC).controller.location = __instance.location;
+                if (npc.temporaryController != null && npc.controller != null)
+                    npc.controller.location = __instance.location;
             }
-            Game1.warpCharacter(___character as NPC, __instance.location, new Vector2(warp.TargetX, warp.TargetY));
+            Game1.warpCharacter(npc, __instance.location, new Vector2(warp.TargetX, warp.TargetY));
 
             if (__instance.isPlayerPresent() && __instance.location.doors.ContainsKey(new Point(warp.X, warp.Y)))
                 __instance.location.playSoundAt("doorClose", new Vector2(warp.X, warp.Y), NetAudio.SoundContext.NPC);
@@ -55,10 +71,28 @@ namespace ChildToNPC.Patches
                 __instance.location.playSoundAt("doorClose", new Vector2(warp.TargetX, warp.TargetY), NetAudio.SoundContext.NPC);
             if (__instance.pathToEndPoint.Count > 0)
                 __instance.pathToEndPoint.Pop();
-            while (__instance.pathToEndPoint.Count > 0 && (Math.Abs(__instance.pathToEndPoint.Peek().X - ___character.getTileX()) > 1 || Math.Abs(__instance.pathToEndPoint.Peek().Y - ___character.getTileY()) > 1))
+            while (__instance.pathToEndPoint.Count > 0 && (Math.Abs(__instance.pathToEndPoint.Peek().X - npc.getTileX()) > 1 || Math.Abs(__instance.pathToEndPoint.Peek().Y - npc.getTileY()) > 1))
                 __instance.pathToEndPoint.Pop();
 
             return false;
+        }
+
+        /* GetFarmerParentId
+         * Returns the parentId from the child given their NPC copy
+         */
+        public static long GetFarmerParentId(NPC npc)
+        {
+            List<Child> children = ModEntry.allChildren;
+            if (children != null)
+            {
+                foreach (Child child in children)
+                {
+                    if (child.Name.Equals(npc.displayName))
+                        return child.idOfParent.Value;
+                }
+            }
+
+            return 0L;
         }
     }
 }

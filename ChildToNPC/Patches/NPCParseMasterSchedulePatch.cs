@@ -14,12 +14,13 @@ namespace ChildToNPC.Patches
      */
     class NPCParseMasterSchedulePatch
     {
-        public static bool Prefix(NPC __instance, ref Dictionary<int, SchedulePathDescription> __result, string rawData)
+        public static bool Prefix(ref NPC __instance, ref Dictionary<int, SchedulePathDescription> __result, string rawData)
         {
             if (!ModEntry.IsChildNPC(__instance))
                 return true;
 
-            /* Code from NPC.parseMasterSchedule */
+            ModEntry.monitor.Log("Parsing Master Schedule for " + __instance.Name);
+            /* Code below is from NPC.parseMasterSchedule */
 
             string[] events = rawData.Split('/');
             int index = 0;
@@ -55,8 +56,8 @@ namespace ChildToNPC.Patches
                 }
             }
 
-            //Example: "NOT friendship Sam 6/" as first entry
-            //Tells you to skip this entry if the friendship isn't set
+            // Example: "NOT friendship Sam 6/" as first entry
+            // Tells you to skip this entry if the friendship isn't set
             if (events[0].Contains("NOT"))
             {
                 string[] friendshipData = events[0].Split(' ');
@@ -89,7 +90,7 @@ namespace ChildToNPC.Patches
                     ++index;
                 }
             }
-            //Added in the 1.4 update, I haven't checked this dialogue yet
+            // Added in the 1.4 update, I haven't checked this dialogue yet
             else if (events[0].Contains("MAIL"))
             {
                 string id = events[0].Split(' ')[1];
@@ -99,8 +100,8 @@ namespace ChildToNPC.Patches
                     ++index;
             }
 
-            //For the case of "NOT friendship Sam 6/GOTO 9" (I think)
-            //Handles the GOTO if friendship change happened
+            // For the case of "NOT friendship Sam 6/GOTO 9" (I think)
+            // Handles the GOTO if friendship change happened
             if (events[index].Contains("GOTO"))
             {
                 string whereToGo = events[index].Split(' ')[1];
@@ -117,8 +118,10 @@ namespace ChildToNPC.Patches
                 return false;
             }
 
-            //Point point = this.isMarried() ? new Point(0, 23) : new Point((int)this.defaultPosition.X / 64, (int)this.defaultPosition.Y / 64);
-            //string startingLocation = this.isMarried() ? "BusStop" : (string)((NetFieldBase<string, NetString>)this.defaultMap);
+            ModEntry.monitor.Log("Handled prefix terms, parsing schedule for today.");
+
+            /* Point point = this.isMarried() ? new Point(0, 23) : new Point((int)this.defaultPosition.X / 64, (int)this.defaultPosition.Y / 64);
+             * string startingLocation = this.isMarried() ? "BusStop" : (string)((NetFieldBase<string, NetString>)this.defaultMap); */
             Point point = new Point(0, 23);
             string startingLocation = "BusStop";
 
@@ -132,7 +135,7 @@ namespace ChildToNPC.Patches
                 string endBehavior = null;
                 string endMessage = null;
 
-                //If there is no location name, skips straight to position
+                // If there is no location name, skips straight to position
                 if (int.TryParse(locationName, out int _))
                     locationName = startingLocation;
 
@@ -182,7 +185,15 @@ namespace ChildToNPC.Patches
                 }
 
                 // Add this time event to the dictionary
-                dictionary.Add(time, ModEntry.helper.Reflection.GetMethod(__instance, "pathfindToNextScheduleLocation", true).Invoke<SchedulePathDescription>(new object[] { startingLocation, point.X, point.Y, locationName, positionX, positionY, facingDirection, endBehavior, endMessage }));
+                object[] invokeArgs = { startingLocation, point.X, point.Y, locationName, positionX, positionY, facingDirection, endBehavior, endMessage };
+                SchedulePathDescription path = ModEntry.helper.Reflection.GetMethod(__instance, "pathfindToNextScheduleLocation", true).Invoke<SchedulePathDescription>(invokeArgs);
+                dictionary.Add(time, path);
+
+                ModEntry.monitor.Log("Adding new event to dictionary at time " + time 
+                    + " to " + locationName + " " + positionX + " " + positionY
+                    + " with endBehavior " + endBehavior 
+                    + " and endMessage " + endMessage);
+
                 // Then pretend this character has completed that appt, check next appt
                 point.X = positionX;
                 point.Y = positionY;

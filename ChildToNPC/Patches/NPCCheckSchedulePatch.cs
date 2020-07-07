@@ -12,7 +12,7 @@ namespace ChildToNPC.Patches
      */
     class NPCCheckSchedulePatch
     {
-        public static bool Prefix(NPC __instance, int timeOfDay, ref Point ___previousEndPoint, ref string ___extraDialogueMessageToAddThisMorning, ref Rectangle ___lastCrossroad)
+        public static bool Prefix(ref NPC __instance, int timeOfDay)
         {
             if (!ModEntry.IsChildNPC(__instance))
                 return true;
@@ -20,52 +20,27 @@ namespace ChildToNPC.Patches
             var scheduleTimeToTry = ModEntry.helper.Reflection.GetField<int>(__instance, "scheduleTimeToTry");
             int scheduleTimeRef = scheduleTimeToTry.GetValue();
 
-            /* Code from NPC.checkSchedule */
-
+            /* Code from NPC.checkSchedule below */
             __instance.updatedDialogueYet = false;
-            ___extraDialogueMessageToAddThisMorning = null;
+            
+            var extraDialogue = ModEntry.helper.Reflection.GetField<string>(__instance, "extraDialogueMessageToAddThisMorning");
+            extraDialogue.SetValue(null);
+            
             if (__instance.ignoreScheduleToday)
                 return false;
 
             if (__instance.Schedule == null)
             {
-                ModEntry.monitor.Log("Schedule for " + __instance.Name + " is null, check your patch summary.", LogLevel.Debug);
+                ModEntry.monitor.Log("Schedule for " + __instance.Name + " is null, check your patch summary.", LogLevel.Trace);
                 return false;
             }
 
+            // Try to load the schedule for the next time
             __instance.Schedule.TryGetValue(scheduleTimeRef == 9999999 ? timeOfDay : scheduleTimeRef, out SchedulePathDescription schedulePathDescription);
-
-            // If I have curfew, override the normal behavior
-            if (ModEntry.Config.DoChildrenHaveCurfew && !__instance.currentLocation.Equals(Game1.getLocationFromName("FarmHouse")))
-            {
-                // Send child home for curfew
-                if(timeOfDay == ModEntry.Config.CurfewTime)
-                {
-                    object[] pathfindParams = { __instance.currentLocation.Name, __instance.getTileX(), __instance.getTileY(), "BusStop", -1, 23, 3, null, null };
-                    schedulePathDescription = ModEntry.helper.Reflection.GetMethod(__instance, "pathfindToNextScheduleLocation", true).Invoke<SchedulePathDescription>(pathfindParams);
-                }
-                // Ignore scheduled events after curfew
-                else if(timeOfDay > ModEntry.Config.CurfewTime)
-                {
-                    schedulePathDescription = null;
-                }
-            }
-
+            
             if (schedulePathDescription == null)
                 return false;
             
-            // Normally I would see a IsMarried check here, but FarmHouse may be better?
-            // (I think this section is meant for handling when the character is still walking)
-            if (!__instance.currentLocation.Equals(Game1.getLocationFromName("FarmHouse")) && (!__instance.IsWalkingInSquare || ___lastCrossroad.Center.X / 64 != ___previousEndPoint.X && ___lastCrossroad.Y / 64 != ___previousEndPoint.Y))
-            {
-                if (!___previousEndPoint.Equals(Point.Zero) && !___previousEndPoint.Equals(__instance.getTileLocationPoint()))
-                {
-                    if (scheduleTimeRef == 9999999)
-                        scheduleTimeToTry.SetValue(timeOfDay);
-                    return false;
-                }
-            }
-
             __instance.DirectionsToNewLocation = schedulePathDescription;
 
             // __instance.prepareToDisembarkOnNewSchedulePath();
@@ -90,7 +65,10 @@ namespace ChildToNPC.Patches
             scheduleTimeToTry.SetValue(9999999);
 
             if (__instance.DirectionsToNewLocation != null && __instance.DirectionsToNewLocation.route != null)
-                ___previousEndPoint = __instance.DirectionsToNewLocation.route.Count > 0 ? __instance.DirectionsToNewLocation.route.Last() : Point.Zero;
+            {
+                var previousEndPoint = ModEntry.helper.Reflection.GetField<Point>(__instance, "previousEndPoint");
+                previousEndPoint.SetValue(__instance.DirectionsToNewLocation.route.Count > 0 ? __instance.DirectionsToNewLocation.route.Last() : Point.Zero);
+            }
 
             return false;
         }

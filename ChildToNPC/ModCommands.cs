@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using StardewValley;
 using StardewValley.Characters;
@@ -13,10 +14,14 @@ namespace ChildToNPC
         public static IMonitor Monitor;
 
         /* The description and usage messages for the mod commands */
-        private readonly string[] descripts = { "Adds a child to your home immediately.\n",
-                                       "Removes the named child from the farm.\n",
-                                       "Changes the age of the named child.\n"};
-        private readonly string[] usage = {
+        private readonly string[] descripts = 
+        { 
+            "Adds a child to your home immediately.\n",
+            "Removes the named child from the farm.\n",
+            "Changes the age of the named child.\n"
+        };
+        private readonly string[] usage = 
+        {
             "Usage: AddChild <name> <is male?> <is dark?>\n"
                 + "- name: the name of the child to be generated.\n"
                 + "- is male?: true for a male child, false otherwise.\n"
@@ -27,15 +32,16 @@ namespace ChildToNPC
                 + "- name: the name of the child to be aged.\n"
                 + "- days old: the new age in days old;\n"
                 + "  newborn is 0 to 13 days, baby is 14 to 27 days, "
-                + "crawler is 28 to 55 days, and toddler is 56+ days."};
+                + "crawler is 28 to 55 days, and toddler is 56+ days."
+        };
 
+        /* Constructor - makes a copy of the mod's IMonitor */
         public ModCommands(IMonitor monitorIn)
         {
             Monitor = monitorIn;
         }
 
-        /* RegisterCommands - registers the mod commands
-         */
+        /* RegisterCommands - registers the mod commands */
         public void RegisterCommands(IModHelper helper)
         {
             helper.ConsoleCommands.Add("AddChild", descripts[0] + usage[0], AddChild);
@@ -66,6 +72,18 @@ namespace ChildToNPC
             }
             string name = args[0];
 
+            // Check the name of the child doesn't match another child
+            FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
+            List<Child> children = farmHouse.getChildren();
+            foreach (Child child in children)
+            {
+                if (child.Name.Equals(name))
+                {
+                    Monitor.Log("You cannot give two children the same name.", LogLevel.Info);
+                    return;
+                }
+            }
+
             /* The code below is based on the NamingEvent in Stardew Valley */
             // Begin the child creation event
             Game1.player.CanMove = false;
@@ -73,6 +91,8 @@ namespace ChildToNPC
 
             // Verify the name of the child
             DisposableList<NPC> allCharacters = Utility.getAllCharacters();
+
+            /* TODO: Guarantee the name won't match any other characters */
             foreach (Character character in allCharacters)
             {
                 if (character.name.Equals(name))
@@ -88,7 +108,7 @@ namespace ChildToNPC
 
             // Add child to home
             baby.Position = new Vector2(16f, 4f) * 64f + new Vector2(0.0f, -24f);
-            Utility.getHomeOfFarmer(Game1.player).characters.Add(baby);
+            farmHouse.addCharacter(baby);
 
             // End the event
             Game1.playSound("smallSelect");
