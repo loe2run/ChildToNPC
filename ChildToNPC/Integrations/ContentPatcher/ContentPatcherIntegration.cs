@@ -23,8 +23,11 @@ namespace ChildToNPC.Integrations.ContentPatcher
         /// <summary>The game tick when the child data was last updated.</summary>
         private int CacheTick = -1;
 
-        /// <summary>A snapshot of the child data as of the last context update.</summary>
+        /// <summary>A snapshot of the children converted to NPCs as of the last context update.</summary>
         private ChildData[] Cache;
+
+        /// <summary>The total number of children, including those not converted to NPC yet.</summary>
+        private int TotalChildren;
 
 
         /*********
@@ -47,7 +50,7 @@ namespace ChildToNPC.Integrations.ContentPatcher
 
             // aggregate tokens
             this
-                .AddToken("NumberTotalChildren", () => this.Cache != null, () => this.Cache.Length.ToString(CultureInfo.InvariantCulture));
+                .AddToken("NumberTotalChildren", () => this.Cache != null, () => this.TotalChildren.ToString(CultureInfo.InvariantCulture));
 
             // per-child tokens
             for (int i = 0; i < this.Ordinals.Length; i++)
@@ -132,30 +135,34 @@ namespace ChildToNPC.Integrations.ContentPatcher
             this.CacheTick = Game1.ticks;
 
             // update context
+            int oldTotal = this.TotalChildren;
             ChildData[] oldData = this.Cache;
-            this.Cache = this.FetchNewData();
-            return this.IsChanged(oldData, this.Cache);
+            this.FetchNewData(out this.Cache, out this.TotalChildren);
+            return
+                oldTotal != this.TotalChildren
+                || this.IsChanged(oldData, this.Cache);
         }
 
         /// <summary>Fetch the latest child data.</summary>
-        private ChildData[] FetchNewData()
+        /// <param name="data">The children converted to NPCs.</param>
+        /// <param name="totalChildren">The total number of children, including those not converted to NPC yet.</param>
+        private void FetchNewData(out ChildData[] data, out int totalChildren)
         {
-            int count = ModEntry.GetTotalChildren();
+            data = new ChildData[ModEntry.GetConvertedChildren()];
+            totalChildren = ModEntry.GetTotalChildren();
 
-            var data = new ChildData[count];
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < data.Length; i++)
             {
+                var child = ModEntry.GetChild(i);
                 data[i] = new ChildData
                 {
-                    Name = ModEntry.GetChildNPCName(i),
-                    Gender = ModEntry.GetChildNPCGender(i),
-                    Birthday = ModEntry.GetChildNPCBirthday(i),
+                    Name = child.Name,
+                    Gender = child.Gender == NPC.male ? "male" : "female",
+                    Birthday = ModEntry.GetChildNPCBirthday(child),
                     Bed = ModEntry.GetBedSpot(i),
-                    Parent = ModEntry.GetChildNPCParent(i)
+                    Parent = ModEntry.GetChildNPCParent(child)
                 };
             }
-
-            return data;
         }
 
         /// <summary>Get whether the cached data changed.</summary>

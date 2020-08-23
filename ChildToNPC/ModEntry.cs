@@ -380,63 +380,48 @@ namespace ChildToNPC
             new ContentPatcherIntegration(this.ModManifest, this.Helper.ModRegistry).RegisterTokens();
         }
 
-        /* GetChildNPC(field) & GetBedSpot
-         * These are for getting access to information for ContentPatcher tokens.
-         */
-        public static string GetChildNPCName(int childIndex)
+        /// <summary>Get a child that's been converted to an NPC.</summary>
+        /// <param name="childIndex">The index of the child in the list.</param>
+        public static Child GetChild(int childIndex)
         {
-            if (children != null && children.Count >= childIndex && children[childIndex].daysOld >= ageForCP)
-                return children[childIndex].Name;
-            return null;
+            return children?.Count > childIndex
+                ? children[childIndex]
+                : null;
         }
 
-        public static string GetChildNPCBirthday(int childIndex)
+        public static string GetChildNPCBirthday(Child child)
+        {
+            SDate today = new SDate(Game1.dayOfMonth, Game1.currentSeason, Game1.year);
+            SDate birthday = new SDate(1, "spring");
+            try
+            {
+                birthday = today.AddDays(-child.daysOld);
+            }
+            catch (ArithmeticException) { }
+
+            return $"{birthday.Season} {birthday.Day}";
+        }
+
+        public static string GetChildNPCParent(Child child)
+        {
+            children_parents.TryGetValue(child.Name, out string parentName);
+            return parentName;
+        }
+
+        public static int GetConvertedChildren()
         {
             if (!Context.IsWorldReady)
-                return null;
+                return 0;
 
-            if (children != null && children.Count >= childIndex && children[childIndex].daysOld >= ageForCP)
-            {
-                SDate todaySDate = new SDate(Game1.dayOfMonth, Game1.currentSeason, Game1.year);
-                SDate birthdaySDate = new SDate(1, "spring");
-                try
-                {
-                    birthdaySDate = todaySDate.AddDays(-children[childIndex].daysOld);
-                }
-                catch (ArithmeticException) { }
-
-                return birthdaySDate.Season + " " + birthdaySDate.Day;
-            }
-            return null;
-        }
-
-        public static string GetChildNPCGender(int childIndex)
-        {
-            if (children != null && children.Count >= childIndex && children[childIndex].daysOld >= ageForCP)
-                return (children[childIndex].Gender == 0) ? "male" : "female";
-            return null;
-        }
-
-        public static string GetChildNPCParent(int childIndex)
-        {
-            if (children != null && children.Count >= childIndex && children[childIndex].daysOld >= ageForCP)
-            {
-                children_parents.TryGetValue(children[childIndex].Name, out string parentName);
-                return parentName;
-            }
-            return null;
+            return children?.Count ?? 0;
         }
 
         public static int GetTotalChildren()
         {
-            FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
-            if (farmHouse == null)
+            if (!Context.IsWorldReady)
                 return 0;
 
-            if (children != null)
-                return farmHouse.getChildrenCount() + children.Count;
-            else
-                return farmHouse.getChildrenCount();
+            return GetConvertedChildren() + Game1.player.getChildrenCount();
         }
 
         public static string GetBedSpot(int childIndex)
