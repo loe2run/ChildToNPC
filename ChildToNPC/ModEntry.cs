@@ -56,7 +56,6 @@ namespace ChildToNPC
         //Variables for this class
         public static Dictionary<string, NPC> copies;
         public static List<Child> children;
-        public static Dictionary<string, string> children_parents;
         public static IMonitor monitor;
         public static IModHelper helper;
         public static ModConfig Config;
@@ -64,14 +63,17 @@ namespace ChildToNPC
 
         public override void Entry(IModHelper helper)
         {
-            //initialize variables
+            // read config
+            Config = helper.ReadConfig<ModConfig>();
+            Config.ChildParentPairs = Config.ChildParentPairs ?? new Dictionary<string, string>();
+
+            // init fields
             monitor = Monitor;
             ModEntry.helper = helper;
             copies = new Dictionary<string, NPC>();
             children = new List<Child>();
-            children_parents = new Dictionary<string, string>();
 
-            Config = helper.ReadConfig<ModConfig>();
+            // console commands
             if (Config.ModdingCommands)
             {
                 helper.ConsoleCommands.Add("AddChild", "AddChild immediately triggers a naming event, adding a child to your home.", AddChild);
@@ -79,13 +81,14 @@ namespace ChildToNPC
                 helper.ConsoleCommands.Add("AgeChild", "Ages the named child to toddler age.", AgeChild);
             }
 
-            //Event handlers
+            // event handlers
             helper.Events.GameLoop.DayStarted += OnDayStarted;
             helper.Events.GameLoop.Saving += OnSaving;
             helper.Events.GameLoop.ReturnedToTitle += OnReturnedToTitle;
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
             helper.Events.GameLoop.OneSecondUpdateTicking += OnOneSecondUpdateTicking;
-            //Harmony
+
+            // Harmony
             HarmonyInstance harmony = HarmonyInstance.Create("Loe2run.ChildToNPC");
 
             harmony.Patch(
@@ -134,18 +137,6 @@ namespace ChildToNPC
                     //Add child to list & remove from farmHouse
                     children.Add(child);
                     farmHouse.getCharacters().Remove(child);
-
-                    //Set the parent for the child, from config or from default
-                    foreach (string name in Config.ChildParentPairs.Keys)
-                    {
-                        if (child.Name.Equals(name))
-                        {
-                            Config.ChildParentPairs.TryGetValue(child.Name, out string parentName);
-                            children_parents.Add(child.Name, parentName);
-                        }
-                    }
-                    if (!children_parents.ContainsKey(child.Name))
-                        children_parents.Add(child.Name, Game1.player.spouse);
 
                     //Create childCopy, add childCopy to list, add to farmHouse at random spot
                     Point openPoint = farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30);
@@ -307,7 +298,6 @@ namespace ChildToNPC
         {
             copies = new Dictionary<string, NPC>();
             children = new List<Child>();
-            children_parents = new Dictionary<string, string>();
             updateNeeded = true;
         }
 
@@ -394,12 +384,10 @@ namespace ChildToNPC
             }
 
             // children not converted yet
-            FarmHouse farmhouse = null;
-            if (Context.IsWorldReady)
-                farmhouse = (FarmHouse)Game1.getLocationFromName("FarmHouse");
-            else if (SaveGame.loaded != null)
-                farmhouse = SaveGame.loaded.locations.OfType<FarmHouse>().FirstOrDefault(p => p.Name == "FarmHouse");
-
+            FarmHouse farmhouse = GetSaveData(
+                loading: save => save.locations.OfType<FarmHouse>().FirstOrDefault(p => p.Name == "FarmHouse"),
+                loaded: () => (FarmHouse)Game1.getLocationFromName("FarmHouse")
+            );
             if (farmhouse != null)
             {
                 foreach (Child child in farmhouse.characters.OfType<Child>())
@@ -409,21 +397,38 @@ namespace ChildToNPC
 
         public static string GetChildNPCBirthday(Child child)
         {
-            SDate today = new SDate(Game1.dayOfMonth, Game1.currentSeason, Game1.year);
-            SDate birthday = new SDate(1, "spring");
-            try
-            {
-                birthday = today.AddDays(-child.daysOld);
-            }
-            catch (ArithmeticException) { }
+            // get current date
+            SDate today = GetSaveData(
+                loading: save => new SDate(save.dayOfMonth, save.currentSeason, save.year),
+                () => SDate.Now()
+            );
 
+            // get birthday
+            SDate birthday = new SDate(1, "spring");
+            if (today != null)
+            {
+                try
+                {
+                    birthday = today.AddDays(-child.daysOld);
+                }
+                catch (ArithmeticException) { }
+            }
+
+            // format
             return $"{birthday.Season} {birthday.Day}";
         }
 
         public static string GetChildNPCParent(Child child)
         {
-            children_parents.TryGetValue(child.Name, out string parentName);
-            return parentName;
+            // defined in config
+            if (Config.ChildParentPairs.TryGetValue(child.Name, out string parentName))
+                return parentName;
+
+            // else current spouse
+            return GetSaveData(
+                loading: save => save.player.spouse,
+                loaded: () => Game1.player.spouse
+            );
         }
 
         public static string GetBedSpot(int childIndex, Child[] children)
@@ -493,6 +498,22 @@ namespace ChildToNPC
 
             string result = "FarmHouse " + childBed.X + " " + childBed.Y;
             return result;
+        }
+
+        /// <summary>Get a value from the save data.</summary>
+        /// <typeparam name="T">The value type.</typeparam>
+        /// <param name="loading">Get the value if the save is still loading.</param>
+        /// <param name="loaded">Get the value if the world is fully loaded.</param>
+        private static T GetSaveData<T>(Func<SaveGame, T> loading, Func<T> loaded)
+            where T : class
+        {
+            if (Context.IsWorldReady)
+                return loaded();
+
+            if (SaveGame.loaded != null)
+                return loading(SaveGame.loaded);
+
+            return null;
         }
 
         /* IsChildNPC
