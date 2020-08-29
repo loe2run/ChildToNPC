@@ -1,15 +1,16 @@
 ﻿using System;
-using System.Linq;
 using System.Collections.Generic;
-using Microsoft.Xna.Framework;
+using System.Linq;
+using ChildToNPC.Integrations.ContentPatcher;
 using Harmony;
+using Microsoft.Xna.Framework;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewModdingAPI.Utilities;
 using StardewValley;
+using StardewValley.Buildings;
 using StardewValley.Characters;
 using StardewValley.Locations;
-using StardewValley.Buildings;
 
 namespace ChildToNPC
 {
@@ -52,12 +53,9 @@ namespace ChildToNPC
 
     class ModEntry : Mod
     {
-        //The age at which the NPC takes over
-        public static int ageForCP;
         //Variables for this class
         public static Dictionary<string, NPC> copies;
         public static List<Child> children;
-        public static Dictionary<string, string> children_parents;
         public static IMonitor monitor;
         public static IModHelper helper;
         public static ModConfig Config;
@@ -65,28 +63,32 @@ namespace ChildToNPC
 
         public override void Entry(IModHelper helper)
         {
-            //initialize variables
+            // read config
+            Config = helper.ReadConfig<ModConfig>();
+            Config.ChildParentPairs = Config.ChildParentPairs ?? new Dictionary<string, string>();
+
+            // init fields
             monitor = Monitor;
             ModEntry.helper = helper;
             copies = new Dictionary<string, NPC>();
             children = new List<Child>();
-            children_parents = new Dictionary<string, string>();
-            //create config
-            Config = helper.ReadConfig<ModConfig>();
-            ageForCP = Config.AgeWhenKidsAreModified;
+
+            // console commands
             if (Config.ModdingCommands)
             {
                 helper.ConsoleCommands.Add("AddChild", "AddChild immediately triggers a naming event, adding a child to your home.", AddChild);
                 helper.ConsoleCommands.Add("RemoveChild", "RemoveChild removes the named child from the farm.", RemoveChild);
                 helper.ConsoleCommands.Add("AgeChild", "Ages the named child to toddler age.", AgeChild);
             }
-            //Event handlers
+
+            // event handlers
             helper.Events.GameLoop.DayStarted += OnDayStarted;
             helper.Events.GameLoop.Saving += OnSaving;
             helper.Events.GameLoop.ReturnedToTitle += OnReturnedToTitle;
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
             helper.Events.GameLoop.OneSecondUpdateTicking += OnOneSecondUpdateTicking;
-            //Harmony
+
+            // Harmony
             HarmonyInstance harmony = HarmonyInstance.Create("Loe2run.ChildToNPC");
 
             harmony.Patch(
@@ -114,8 +116,6 @@ namespace ChildToNPC
                 prefix: new HarmonyMethod(typeof(Patches.PFCHandleWarpsPatch), nameof(Patches.PFCHandleWarpsPatch.Prefix))
             );
             //harmony.PatchAll(Assembly.GetExecutingAssembly());
-
-            IModInfo cpinfo = helper.ModRegistry.Get("Pathoschild.ContentPatcher");
         }
 
         /* OnDayStarted
@@ -132,23 +132,11 @@ namespace ChildToNPC
             foreach (Child child in farmHouse.getChildren())
             {
                 //If the child just aged up/first time loading save
-                if (child.daysOld >= ageForCP && children != null && !children.Contains(child))
+                if (IsOldEnough(child) && children != null && !children.Contains(child))
                 {
                     //Add child to list & remove from farmHouse
                     children.Add(child);
                     farmHouse.getCharacters().Remove(child);
-
-                    //Set the parent for the child, from config or from default
-                    foreach (string name in Config.ChildParentPairs.Keys)
-                    {
-                        if (child.Name.Equals(name))
-                        {
-                            Config.ChildParentPairs.TryGetValue(child.Name, out string parentName);
-                            children_parents.Add(child.Name, parentName);
-                        }
-                    }
-                    if (!children_parents.ContainsKey(child.Name))
-                        children_parents.Add(child.Name, Game1.player.spouse);
 
                     //Create childCopy, add childCopy to list, add to farmHouse at random spot
                     Point openPoint = farmHouse.getRandomOpenPointInHouse(Game1.random, 0, 30);
@@ -310,7 +298,6 @@ namespace ChildToNPC
         {
             copies = new Dictionary<string, NPC>();
             children = new List<Child>();
-            children_parents = new Dictionary<string, string>();
             updateNeeded = true;
         }
 
@@ -376,278 +363,80 @@ namespace ChildToNPC
          */
         private void OnGameLaunched(object sender, GameLaunchedEventArgs e)
         {
-            IContentPatcherAPI api = Helper.ModRegistry.GetApi<IContentPatcherAPI>("Pathoschild.ContentPatcher");
-            if (api == null)
-                return;
-
-            ChildToken token = new ChildToken(1);
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "NumberTotalChildren",
-                updateContext: token.TotalChildrenUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.TotalChildrenGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "FirstChildName",
-                updateContext: token.NameUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.NameGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "FirstChildBirthday",
-                updateContext: token.BirthdayUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.BirthdayGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "FirstChildBed",
-                updateContext: token.BedUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.BedGetValue,
-                allowsInput: true,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "FirstChildGender",
-                updateContext: token.GenderUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.GenderGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "FirstChildParent",
-                updateContext: token.ParentUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.ParentGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-
-            token = new ChildToken(2);
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "SecondChildName",
-                updateContext: token.NameUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.NameGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "SecondChildBirthday",
-                updateContext: token.BirthdayUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.BirthdayGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "SecondChildBed",
-                updateContext: token.BedUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.BedGetValue,
-                allowsInput: true,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "SecondChildGender",
-                updateContext: token.GenderUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.GenderGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "SecondChildParent",
-                updateContext: token.ParentUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.ParentGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-
-            token = new ChildToken(3);
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "ThirdChildName",
-                updateContext: token.NameUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.NameGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "ThirdChildBirthday",
-                updateContext: token.BirthdayUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.BirthdayGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "ThirdChildBed",
-                updateContext: token.BedUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.BedGetValue,
-                allowsInput: true,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "ThirdChildGender",
-                updateContext: token.GenderUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.GenderGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "ThirdChildParent",
-                updateContext: token.ParentUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.ParentGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-
-            token = new ChildToken(4);
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "FourthChildName",
-                updateContext: token.NameUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.NameGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "FourthChildBirthday",
-                updateContext: token.BirthdayUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.BirthdayGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "FourthChildBed",
-                updateContext: token.BedUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.BedGetValue,
-                allowsInput: true,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "FourthChildGender",
-                updateContext: token.GenderUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.GenderGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-            api.RegisterToken(
-                mod: ModManifest,
-                name: "FourthChildParent",
-                updateContext: token.ParentUpdateContext,
-                isReady: token.IsReady,
-                getValue: token.ParentGetValue,
-                allowsInput: false,
-                requiresInput: false
-            );
-
-            //I'm stopping at four for now.
-            //If FamilyPlanning expands past four, I'll need to come back to this.
+            new ContentPatcherIntegration(this.ModManifest, this.Helper.ModRegistry).RegisterTokens();
         }
 
-        /* GetChildNPC(field) & GetBedSpot
-         * These are for getting access to information for ContentPatcher tokens.
-         */
-        public static string GetChildNPCName(int childNumber)
+        /// <summary>Get whether a child is old enough to convert into an NPC.</summary>
+        /// <param name="child">The child to check.</param>
+        public static bool IsOldEnough(Child child)
         {
-            if (children != null && children.Count >= childNumber && children[childNumber - 1].daysOld >= ageForCP)
-                return children[childNumber - 1].Name;
-            return null;
+            return child.daysOld >= Config.AgeWhenKidsAreModified;
         }
 
-        public static string GetChildNPCBirthday(int childNumber)
+        /// <summary>Get all children, including those who haven't been converted into NPCs.</summary>
+        public static IEnumerable<Child> GetAllChildrenForTokens()
         {
-            if (!Context.IsWorldReady)
-                return null;
-
-            if (children != null && children.Count >= childNumber && children[childNumber - 1].daysOld >= ageForCP)
+            // converted children
+            if (children != null)
             {
-                SDate todaySDate = new SDate(Game1.dayOfMonth, Game1.currentSeason, Game1.year);
-                SDate birthdaySDate = new SDate(1, "spring");
+                foreach (Child child in children)
+                    yield return child;
+            }
+
+            // children not converted yet
+            FarmHouse farmhouse = GetSaveData(
+                loading: save => save.locations.OfType<FarmHouse>().FirstOrDefault(p => p.Name == "FarmHouse"),
+                loaded: () => (FarmHouse)Game1.getLocationFromName("FarmHouse")
+            );
+            if (farmhouse != null)
+            {
+                foreach (Child child in farmhouse.characters.OfType<Child>())
+                    yield return child;
+            }
+        }
+
+        public static string GetChildNPCBirthday(Child child)
+        {
+            // get current date
+            SDate today = GetSaveData(
+                loading: save => new SDate(save.dayOfMonth, save.currentSeason, save.year),
+                () => SDate.Now()
+            );
+
+            // get birthday
+            SDate birthday = new SDate(1, "spring");
+            if (today != null)
+            {
                 try
                 {
-                    birthdaySDate = todaySDate.AddDays(-children[childNumber - 1].daysOld);
+                    birthday = today.AddDays(-child.daysOld);
                 }
                 catch (ArithmeticException) { }
-
-                return birthdaySDate.Season + " " + birthdaySDate.Day;
             }
-            return null;
+
+            // format
+            return $"{birthday.Season} {birthday.Day}";
         }
 
-        public static string GetChildNPCGender(int childNumber)
+        public static string GetChildNPCParent(Child child)
         {
-            if (children != null && children.Count >= childNumber && children[childNumber - 1].daysOld >= ageForCP)
-                return (children[childNumber - 1].Gender == 0) ? "male" : "female";
-            return null;
-        }
-
-        public static string GetChildNPCParent(int childNumber)
-        {
-            if (children != null && children.Count >= childNumber && children[childNumber - 1].daysOld >= ageForCP)
-            {
-                children_parents.TryGetValue(children[childNumber - 1].Name, out string parentName);
+            // defined in config
+            if (Config.ChildParentPairs.TryGetValue(child.Name, out string parentName))
                 return parentName;
-            }
-            return null;
+
+            // else current spouse
+            return GetSaveData(
+                loading: save => save.player.spouse,
+                loaded: () => Game1.player.spouse
+            );
         }
 
-        public static string GetTotalChildren()
+        public static string GetBedSpot(int childIndex, Child[] children)
         {
-            FarmHouse farmHouse = Utility.getHomeOfFarmer(Game1.player);
+            int birthNumber = childIndex + 1;
 
-            if (farmHouse == null)
-                return null;
-
-            if (children != null)
-                return (farmHouse.getChildrenCount() + children.Count).ToString();
-            else
-                return farmHouse.getChildrenCount().ToString();
-        }
-
-        public static string GetBedSpot(int birthNumber)
-        {
             //This code is copied from Family Planning
             //This is how I determine whose bed is whose
-            if (children == null)
-                return null;
 
             int boys = 0;
             int girls = 0;
@@ -655,7 +444,7 @@ namespace ChildToNPC
 
             foreach (Child child in children)
             {
-                if (child.daysOld >= ageForCP)
+                if (IsOldEnough(child))
                 {
                     if (child.Gender == 0)
                         boys++;
@@ -666,7 +455,7 @@ namespace ChildToNPC
                     baby++;
             }
 
-            if (children.Count - baby < birthNumber)
+            if (children.Length - baby < birthNumber)
                 return null;
 
             Point childBed = new Point(23, 5);
@@ -711,6 +500,22 @@ namespace ChildToNPC
             return result;
         }
 
+        /// <summary>Get a value from the save data.</summary>
+        /// <typeparam name="T">The value type.</typeparam>
+        /// <param name="loading">Get the value if the save is still loading.</param>
+        /// <param name="loaded">Get the value if the world is fully loaded.</param>
+        private static T GetSaveData<T>(Func<SaveGame, T> loading, Func<T> loaded)
+            where T : class
+        {
+            if (Context.IsWorldReady)
+                return loaded();
+
+            if (SaveGame.loaded != null)
+                return loading(SaveGame.loaded);
+
+            return null;
+        }
+
         /* IsChildNPC
          * I only want to trigger Harmony patches when I'm applying the method to an NPC copy,
          * so this method verifies that the NPC in question is on my list.
@@ -746,7 +551,7 @@ namespace ChildToNPC
          */
         public static long GetFarmerParentId(Character c)
         {
-            foreach(Child child in children)
+            foreach (Child child in children)
             {
                 if (child.Name.Equals(c.Name))
                 {
