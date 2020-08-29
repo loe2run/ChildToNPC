@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Globalization;
+using System.Linq;
 using StardewModdingAPI;
 using StardewValley;
+using StardewValley.Characters;
 
 namespace ChildToNPC.Integrations.ContentPatcher
 {
@@ -123,7 +125,7 @@ namespace ChildToNPC.Integrations.ContentPatcher
         /// <param name="index">The child index.</param>
         private bool IsReady(int index)
         {
-            return this.GetChild(index)?.Name != null;
+            return this.GetChild(index) != null;
         }
 
         /// <summary>Update all tokens for the current context.</summary>
@@ -148,18 +150,21 @@ namespace ChildToNPC.Integrations.ContentPatcher
         /// <param name="totalChildren">The total number of children, including those not converted to NPC yet.</param>
         private void FetchNewData(out ChildData[] data, out int totalChildren)
         {
-            data = new ChildData[ModEntry.GetConvertedChildren()];
-            totalChildren = ModEntry.GetTotalChildren();
+            Child[] allChildren = ModEntry.GetAllChildrenForTokens().ToArray();
+            Child[] convertibleChildren = allChildren.Where(ModEntry.IsOldEnough).ToArray();
 
+            totalChildren = allChildren.Length;
+
+            data = new ChildData[convertibleChildren.Length];
             for (int i = 0; i < data.Length; i++)
             {
-                var child = ModEntry.GetChild(i);
+                var child = convertibleChildren[i];
                 data[i] = new ChildData
                 {
                     Name = child.Name,
                     Gender = child.Gender == NPC.male ? "male" : "female",
                     Birthday = ModEntry.GetChildNPCBirthday(child),
-                    Bed = ModEntry.GetBedSpot(i),
+                    Bed = ModEntry.GetBedSpot(i, allChildren),
                     Parent = ModEntry.GetChildNPCParent(child)
                 };
             }

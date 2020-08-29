@@ -53,8 +53,6 @@ namespace ChildToNPC
 
     class ModEntry : Mod
     {
-        //The age at which the NPC takes over
-        public static int ageForCP;
         //Variables for this class
         public static Dictionary<string, NPC> copies;
         public static List<Child> children;
@@ -72,15 +70,15 @@ namespace ChildToNPC
             copies = new Dictionary<string, NPC>();
             children = new List<Child>();
             children_parents = new Dictionary<string, string>();
-            //create config
+
             Config = helper.ReadConfig<ModConfig>();
-            ageForCP = Config.AgeWhenKidsAreModified;
             if (Config.ModdingCommands)
             {
                 helper.ConsoleCommands.Add("AddChild", "AddChild immediately triggers a naming event, adding a child to your home.", AddChild);
                 helper.ConsoleCommands.Add("RemoveChild", "RemoveChild removes the named child from the farm.", RemoveChild);
                 helper.ConsoleCommands.Add("AgeChild", "Ages the named child to toddler age.", AgeChild);
             }
+
             //Event handlers
             helper.Events.GameLoop.DayStarted += OnDayStarted;
             helper.Events.GameLoop.Saving += OnSaving;
@@ -115,8 +113,6 @@ namespace ChildToNPC
                 prefix: new HarmonyMethod(typeof(Patches.PFCHandleWarpsPatch), nameof(Patches.PFCHandleWarpsPatch.Prefix))
             );
             //harmony.PatchAll(Assembly.GetExecutingAssembly());
-
-            IModInfo cpinfo = helper.ModRegistry.Get("Pathoschild.ContentPatcher");
         }
 
         /* OnDayStarted
@@ -133,7 +129,7 @@ namespace ChildToNPC
             foreach (Child child in farmHouse.getChildren())
             {
                 //If the child just aged up/first time loading save
-                if (child.daysOld >= ageForCP && children != null && !children.Contains(child))
+                if (IsOldEnough(child) && children != null && !children.Contains(child))
                 {
                     //Add child to list & remove from farmHouse
                     children.Add(child);
@@ -380,13 +376,35 @@ namespace ChildToNPC
             new ContentPatcherIntegration(this.ModManifest, this.Helper.ModRegistry).RegisterTokens();
         }
 
-        /// <summary>Get a child that's been converted to an NPC.</summary>
-        /// <param name="childIndex">The index of the child in the list.</param>
-        public static Child GetChild(int childIndex)
+        /// <summary>Get whether a child is old enough to convert into an NPC.</summary>
+        /// <param name="child">The child to check.</param>
+        public static bool IsOldEnough(Child child)
         {
-            return children?.Count > childIndex
-                ? children[childIndex]
-                : null;
+            return child.daysOld >= Config.AgeWhenKidsAreModified;
+        }
+
+        /// <summary>Get all children, including those who haven't been converted into NPCs.</summary>
+        public static IEnumerable<Child> GetAllChildrenForTokens()
+        {
+            // converted children
+            if (children != null)
+            {
+                foreach (Child child in children)
+                    yield return child;
+            }
+
+            // children not converted yet
+            FarmHouse farmhouse = null;
+            if (Context.IsWorldReady)
+                farmhouse = (FarmHouse)Game1.getLocationFromName("FarmHouse");
+            else if (SaveGame.loaded != null)
+                farmhouse = SaveGame.loaded.locations.OfType<FarmHouse>().FirstOrDefault(p => p.Name == "FarmHouse");
+
+            if (farmhouse != null)
+            {
+                foreach (Child child in farmhouse.characters.OfType<Child>())
+                    yield return child;
+            }
         }
 
         public static string GetChildNPCBirthday(Child child)
@@ -408,30 +426,12 @@ namespace ChildToNPC
             return parentName;
         }
 
-        public static int GetConvertedChildren()
-        {
-            if (!Context.IsWorldReady)
-                return 0;
-
-            return children?.Count ?? 0;
-        }
-
-        public static int GetTotalChildren()
-        {
-            if (!Context.IsWorldReady)
-                return 0;
-
-            return GetConvertedChildren() + Game1.player.getChildrenCount();
-        }
-
-        public static string GetBedSpot(int childIndex)
+        public static string GetBedSpot(int childIndex, Child[] children)
         {
             int birthNumber = childIndex + 1;
 
             //This code is copied from Family Planning
             //This is how I determine whose bed is whose
-            if (children == null)
-                return null;
 
             int boys = 0;
             int girls = 0;
@@ -439,7 +439,7 @@ namespace ChildToNPC
 
             foreach (Child child in children)
             {
-                if (child.daysOld >= ageForCP)
+                if (IsOldEnough(child))
                 {
                     if (child.Gender == 0)
                         boys++;
@@ -450,7 +450,7 @@ namespace ChildToNPC
                     baby++;
             }
 
-            if (children.Count - baby < birthNumber)
+            if (children.Length - baby < birthNumber)
                 return null;
 
             Point childBed = new Point(23, 5);
